@@ -1,0 +1,49 @@
+import { model, Schema } from "mongoose";
+import { TCourse } from "../types/course.interface";
+
+const eventScema = new Schema<TCourse> ({
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    price: {
+      type: Number,
+      required: true,
+    },
+    duration: {
+      type: String,
+      required: true,
+    },
+    teacher: {
+      type: String,
+      required: true,
+    },
+    thumbnail: {
+      type: String,
+      required: true,
+    },
+    enrolledStudents: {
+      type: Number,
+      default: 0,
+    },
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    totalModules: {
+      type: Number,
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+)
+export const Course = model<TCourse>('Course', eventScema)

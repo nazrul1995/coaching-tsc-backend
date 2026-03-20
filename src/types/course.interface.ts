@@ -4,7 +4,6 @@ export interface TCourse {
   description: string;
   price: number;
   duration: string;
-  teacher: string;
   thumbnail: string;
   enrolledStudents: number;
   rating: number;

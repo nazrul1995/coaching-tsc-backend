@@ -23,11 +23,47 @@ const createCourse = async (req: Request, res: Response) => {
 // Get all courses
 const getCourses = async (req: Request, res: Response) => {
   try {
-    const courses = await Course.find();
+    const {
+      limit = '10',
+      page = '1',
+      sort = 'price',
+      order = 'desc',
+      search = ""
+    } = req.query;
 
+    // Convert query params
+    const limitNum = Math.max(0, Number(limit));
+    const pageNum = Math.max(1, Number(page));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Sort option
+    const sortOption: Record<string, 1 | -1> = {};
+    sortOption[String(sort)] = order === 'asc' ? 1 : -1;
+    // Search query
+    const query: Record<string, any> = {}
+    if (search) {
+      query.title = {
+        $regex: String(search),
+        $options: 'i',
+      };
+    }
+    // Query
+    const courses = await Course.find(query)
+      .limit(limitNum)
+      .skip(skip)
+      .sort(sortOption);
+
+    const total = await Course.countDocuments(query);
+    //console.log(limit, sort, search)
     res.status(200).json({
       success: true,
       message: 'Courses fetched successfully',
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPage: Math.ceil(total / limitNum),
+      },
       data: courses,
     });
   } catch (err: any) {
@@ -38,7 +74,6 @@ const getCourses = async (req: Request, res: Response) => {
     });
   }
 };
-
 // Get single course
 const getCourseById = async (req: Request, res: Response) => {
   try {

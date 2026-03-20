@@ -24,7 +24,7 @@ const moduleRoutes = [
     route: AiRoutes,
   },
   {
-    path: '/course',
+    path: '/courses',
     route: CourseRoutes,
   },
   {

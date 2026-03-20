@@ -86,9 +86,8 @@ const login = async (req: Request, res: Response) => {
       success: true,
       message: 'User logged in successfully',
       token,
-      data: userResponse, 
+      data: userResponse,
     });
-
   } catch (err: any) {
     res.status(500).json({
       success: false,
@@ -97,6 +96,7 @@ const login = async (req: Request, res: Response) => {
     });
   }
 };
+
 
 // Get all users
 const getUsers = async (req: Request, res: Response) => {
@@ -116,8 +116,98 @@ const getUsers = async (req: Request, res: Response) => {
   }
 };
 
+
+// get single user
+const getUser = async (req: Request, res:Response)=>{
+  try {
+    const user = await User.findById(req.params.id)
+    if(!user){
+      return res.status(404).json({
+        success:false,
+        message:"User not found"
+      })
+    }
+    res.status(200).json({
+        success:true,
+        data: user,
+    })
+  } catch (error: any) {
+    res.status(500).json({
+        success:false,
+        message:"Failed to fetch user",
+        error: error.message,
+    })
+  }
+}
+
+// get update user
+const updateUser = async (req: Request, res:Response)=>{
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new:true, runValidators: true
+      }
+    )
+    if(!updatedUser){
+      return res.status(404).json({
+        success:false,
+        message:"User not found"
+      })
+    }
+    res.status(200).json({
+        success:true,
+        message:"User updated successfully",
+        data: updatedUser,
+    })
+  } catch (error: any) {
+    res.status(500).json({
+        success:false,
+        message:"Failed to update user",
+        error: error.message,
+    })
+  }
+}
+
+//Update user role (admin / student)
+const updateUserRole = async (req: Request, res: Response) => {
+  try {
+    const { userId, role } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { role },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User role updated successfully",
+      data: updatedUser,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update role",
+      error: error.message,
+    });
+  }
+};
+
+
 export const userControllers = {
   register,
   login,
   getUsers,
+  getUser,
+  updateUser,
+  updateUserRole,
 };

@@ -19,10 +19,6 @@ const eventScema = new Schema<TCourse> ({
       type: String,
       required: true,
     },
-    teacher: {
-      type: String,
-      required: true,
-    },
     thumbnail: {
       type: String,
       required: true,

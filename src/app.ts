@@ -1,3 +1,5 @@
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import cors from 'cors';
 import express, { Application, Request, Response } from 'express';
 import router from './routes'

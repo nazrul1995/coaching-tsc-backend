@@ -24,47 +24,60 @@ const createCourse = async (req: Request, res: Response) => {
 const getCourses = async (req: Request, res: Response) => {
   try {
     const {
-      limit = '10',
-      page = '1',
+      limit = '3',
+      page = '3',
       sort = 'price',
       order = 'desc',
-      search = ""
+      search = '',
+      rating,
+      priceMin,
+      priceMax,
     } = req.query;
 
-    // Convert query params
-    const limitNum = Math.max(0, Number(limit));
+    const limitNum = Math.max(1, Number(limit));
     const pageNum = Math.max(1, Number(page));
     const skip = (pageNum - 1) * limitNum;
 
-    // Sort option
+    // 🔍 Query object
+    const query: Record<string, any> = {};
+
+    // Search
+    if (search) {
+      query.title = { $regex: String(search), $options: 'i' };
+    }
+
+    // ⭐ Rating filter
+    if (rating) {
+      query.rating = { $gte: Number(rating) };
+    }
+
+    // 💰 Price filter
+    if (priceMin || priceMax) {
+      query.price = {};
+      if (priceMin) query.price.$gte = Number(priceMin);
+      if (priceMax) query.price.$lte = Number(priceMax);
+    }
+
+    // 🔃 Sorting
     const sortOption: Record<string, 1 | -1> = {};
     sortOption[String(sort)] = order === 'asc' ? 1 : -1;
-    // Search query
-    const query: Record<string, any> = {}
-    if (search) {
-      query.title = {
-        $regex: String(search),
-        $options: 'i',
-      };
-    }
-    // Query
+
     const courses = await Course.find(query)
-      .limit(limitNum)
+      .sort(sortOption)
       .skip(skip)
-      .sort(sortOption);
+      .limit(limitNum);
 
     const total = await Course.countDocuments(query);
-    //console.log(limit, sort, search)
+
     res.status(200).json({
       success: true,
-      message: 'Courses fetched successfully',
+      data: courses,
       meta: {
         page: pageNum,
         limit: limitNum,
         total,
         totalPage: Math.ceil(total / limitNum),
       },
-      data: courses,
     });
   } catch (err: any) {
     res.status(500).json({

@@ -7,40 +7,20 @@ const userSchema = new Schema<IUser>({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true, select: false },
-  role: { type: String, enum: ['admin', 'user'], default: 'user' },
+  role: {
+    type: String,
+    enum: ['student', 'teacher', 'guardian', 'admin'],
+    default: 'student'
+  },
+  image: { type: String },
 }, {
   timestamps: true,
 });
 
-// Pre-save middleware / hook : will run before saving a document
-userSchema.pre('save', async function (next) {
-  // 'this' refers to the document about to be saved
-  const user = this;
-
-  // Only hash the password if it has been modified (or is new)
-  if (!user.isModified('password')) {
-    return;
-  }
-
-  // Hash password using bcrypt salt rounds from config
-  user.password = await bcrypt.hash(
-    user.password as string,
-    Number(config.bcrypt_salt_rounds)
-  );
-  
-});
-
-// Post-save middleware / hook : will run directly after saving a document
-userSchema.post('save', function (user, next) {
-  // doc is the document that was just saved
-  // For example, we want to erase password field before returning doc after creation
-  // Or simply log the information
-  console.log(`[Post-Save Hook]: A new user was created with email: ${user.email}`);
-  
-  // Note: Modifying doc here won't save it to DB (unless you call .save() again), 
-  // but it does affect the object returned from the save() method in controller.
-  user.password = '';
-  
+// Hash password before save
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password as string, Number(config.bcrypt_salt_rounds));
   next();
 });
 

@@ -10,6 +10,14 @@ const register = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
     
+    // Validate required fields
+    if (!email || !req.body.password || !req.body.name || !req.body.role) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, password, and role are required',
+      });
+    }
+    
     // Check if user already exists
     const isUserExist = await User.findOne({ email });
 
@@ -36,14 +44,35 @@ const register = async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
-      data: userResponse,
+      user: userResponse,
       token,
     });
   } catch (err: any) {
+    console.error('Register Error:', err);
+    
+    // Handle Mongoose validation errors
+    if (err.name === 'ValidationError') {
+      const messages = Object.values(err.errors).map((e: any) => e.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: messages,
+      });
+    }
+    
+    // Handle duplicate key errors
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyValue)[0];
+      return res.status(400).json({
+        success: false,
+        message: `${field} already exists`,
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to register user',
-      error: err.message,
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error',
     });
   }
 };
@@ -52,6 +81,14 @@ const register = async (req: Request, res: Response) => {
 const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    
+    // Validate required fields
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required',
+      });
+    }
     
     // Check if user exists
     const user = await User.findOne({ email }).select('+password');
@@ -86,13 +123,14 @@ const login = async (req: Request, res: Response) => {
       success: true,
       message: 'User logged in successfully',
       token,
-      data: userResponse,
+      user: userResponse,
     });
   } catch (err: any) {
+    console.error('Login Error:', err);
     res.status(500).json({
       success: false,
       message: 'Failed to login',
-      error: err.message,
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error',
     });
   }
 };

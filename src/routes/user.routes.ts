@@ -16,4 +16,6 @@ router.patch("/:id", userControllers.updateUser)
 // UPDATE role
 router.patch("/role", userControllers.updateUserRole);
 
+router.post("/social-login", userControllers.socialLogin);
+
 export const UserRoutes = router;

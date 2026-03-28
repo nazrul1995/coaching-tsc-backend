@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import config from "../config";
+import { IUser } from "../types/user.interface";
 
 export interface AuthRequest extends Request {
-  user?: any;
+  user?: IUser;
 }
 
 export const verifyToken = (
@@ -25,7 +26,7 @@ export const verifyToken = (
 
     const decoded = jwt.verify(token, config.jwt_secret as string);
 
-    req.user = decoded;
+    req.user = decoded as IUser;
 
     next();
   } catch {
@@ -62,7 +63,7 @@ export const isOwnerOrAdmin = (
 ) => {
   const userId = req.params.id;
 
-  if (req.user.role === "admin" || req.user.id === userId) {
+  if (req.user?.role === "admin") {
     return next();
   }
 

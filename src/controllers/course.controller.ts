@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Course } from '../model/courses.model';
+import { AuthRequest } from '../middleware/auth.middleware';
 
 // Create course
 const createCourse = async (req: Request, res: Response) => {
@@ -112,7 +113,31 @@ const getCourseById = async (req: Request, res: Response) => {
     });
   }
 };
+// Get  course by email
+const getMyCourses = async (req: AuthRequest, res: Response) => {
+  try {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(400).json({ success: false, message: "User email missing" });
+    }
 
+    console.log("Fetching courses for email:", userEmail);
+
+    const courses = await Course.find({ creatorEmail: userEmail }); // 🔹 updated field
+    res.status(200).json({
+      success: true,
+      message: "Courses fetched successfully",
+      data: courses,
+    });
+  } catch (err: any) {
+    console.error("Failed to fetch courses:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch courses",
+      error: err.message,
+    });
+  }
+};
 // Update course
 const updateCourse = async (req: Request, res: Response) => {
   try {
@@ -204,5 +229,6 @@ export const courseControllers = {
   getCourseById,
   updateCourse,
   deleteCourse,
-  updateCourseRating
+  updateCourseRating,
+  getMyCourses,
 };

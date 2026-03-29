@@ -23,6 +23,15 @@ const enrollCourseSchema = new Schema<TEnrollCourse >(
       type: Number,
       required: true,
     },
+    status: {
+      type: String,
+      required: true,
+      default: 'unpaid',
+    },
+    creatorEmail: {
+      type: String,
+      required: true,
+    },
   },
   {
     timestamps: true,

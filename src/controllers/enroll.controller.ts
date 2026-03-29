@@ -4,7 +4,7 @@ import { EnrollCourse } from "../model/enrollcourse.model";
 
 const enrollCourse = async (req: Request, res: Response) => {
   try {
-    const { userEmail, userName, courseId } = req.body;
+    const { userEmail, userName, courseId, creatorEmail } = req.body;
 
     // 1. Check course exists
     const course = await Course.findById(courseId);
@@ -35,6 +35,7 @@ const enrollCourse = async (req: Request, res: Response) => {
       courseId,
       courseTitle: course.title,
       price: course.price,
+      creatorEmail: course.creatorEmail,
     });
 
     // 4. Update enrolledStudents count

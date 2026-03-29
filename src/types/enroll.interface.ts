@@ -5,4 +5,6 @@ export interface TEnrollCourse {
   courseTitle: string;
   price: number;
   enrolledAt?: Date;
+  status: string;
+  creatorEmail?: string;
 }

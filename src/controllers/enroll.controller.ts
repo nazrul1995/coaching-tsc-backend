@@ -4,7 +4,7 @@ import { EnrollCourse } from "../model/enrollcourse.model";
 
 const enrollCourse = async (req: Request, res: Response) => {
   try {
-    const { userEmail, userName, courseId, creatorEmail } = req.body;
+    const { userEmail, userName, courseId } = req.body;
 
     // 1. Check course exists
     const course = await Course.findById(courseId);
@@ -57,6 +57,29 @@ const enrollCourse = async (req: Request, res: Response) => {
   }
 };
 
+const getMyEnrolledCourses = async (req: Request, res: Response) => {
+  try {
+    const userEmail = req.query.userEmail as string;
+    if (!userEmail) {
+      return res.status(400).json({ success: false, message: "User email is required" });
+    }
+    const enrollments = await EnrollCourse.find({ userEmail });
+
+    res.status(200).json({
+      success: true,
+      message: "Enrolled courses retrieved successfully",
+      data: enrollments,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve enrolled courses",
+      error: error.message,
+    });
+  }
+};
+
 export const enrollControllers = {
   enrollCourse,
+  getMyEnrolledCourses,
 };

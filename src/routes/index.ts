@@ -6,6 +6,7 @@ import { AiRoutes } from './ai.routes';
 import path from 'node:path';
 import { CourseRoutes } from './course.route';
 import { EnrollRoutes } from './enroll.routes';
+import { StudentRoutes } from './students.routes';
 
 
 const router = express.Router();
@@ -17,7 +18,7 @@ const moduleRoutes = [
   },
   {
     path: '/users',
-    route: UserRoutes,  
+    route: UserRoutes,
   },
   {
     path: '/ai',
@@ -28,9 +29,13 @@ const moduleRoutes = [
     route: CourseRoutes,
   },
   {
-  path: "/enroll",
-  route: EnrollRoutes,
-}
+    path: "/enroll",
+    route: EnrollRoutes,
+  },
+  {
+    path: "/students",
+    route: StudentRoutes,
+  }
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

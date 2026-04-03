@@ -1,6 +1,5 @@
 import bcrypt from 'bcrypt';
 import { Schema, model } from 'mongoose';
-import config from '../config';
 import { TStudent } from '../types/student.interface';
 
 const studentSchema = new Schema<TStudent>({

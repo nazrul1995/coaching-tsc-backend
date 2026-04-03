@@ -63,9 +63,9 @@ export const getAllStudents = catchAsync(async (_req: Request, res: Response) =>
   });
 });
 
-// GET STUDENT BY ID
-export const getStudentById = catchAsync(async (req: Request, res: Response) => {
-  const student = await Student.findById(req.params.id);
+// GET STUDENT BY EMAIL
+export const getStudentByemail = catchAsync(async (req: Request, res: Response) => {
+  const student = await Student.findOne({ email: req.params.email });
   if (!student) {
     return res.status(404).json({
       success: false,
@@ -130,7 +130,7 @@ export const deleteStudent = catchAsync(async (req: Request, res: Response) => {
 export const studentControllers = {
   createStudent,
   getAllStudents,
-  getStudentById,
+  getStudentByemail,
   updateStudent,
   deleteStudent,
 };

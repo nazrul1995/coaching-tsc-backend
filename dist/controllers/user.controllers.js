@@ -215,6 +215,66 @@ const updateUserRole = (req, res) => __awaiter(void 0, void 0, void 0, function*
         });
     }
 });
+const socialLogin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { name, email, image, credential } = req.body;
+        // If credential (Google JWT) is provided, decode it
+        let userData = { name, email, image };
+        if (credential) {
+            try {
+                // Decode Google JWT without verification (we trust Google)
+                const decoded = jsonwebtoken_1.default.decode(credential);
+                if (decoded) {
+                    userData = {
+                        name: decoded.name || name || 'User',
+                        email: decoded.email || email,
+                        image: decoded.picture || image,
+                    };
+                }
+            }
+            catch (decodeErr) {
+                console.error('Failed to decode Google credential:', decodeErr);
+                // Fall back to provided data
+            }
+        }
+        let user = yield user_model_1.User.findOne({ email: userData.email });
+        // If user doesn't exist → create
+        if (!user) {
+            user = yield user_model_1.User.create({
+                name: userData.name,
+                email: userData.email,
+                image: userData.image,
+                password: "SOCIAL_LOGIN_" + Date.now(), // unique dummy password
+                role: 'student',
+            });
+        }
+        else {
+            // Update existing user's image if provided
+            if (userData.image) {
+                user.image = userData.image;
+                yield user.save();
+            }
+        }
+        // Generate JWT (your system)
+        const token = jsonwebtoken_1.default.sign({ email: user.email, role: user.role }, config_1.default.jwt_secret, { expiresIn: config_1.default.jwt_expires_in });
+        const userResponse = user.toObject();
+        delete userResponse.password;
+        res.status(200).json({
+            success: true,
+            message: "Social login successful",
+            token,
+            user: userResponse,
+        });
+    }
+    catch (error) {
+        console.error('Social login error:', error);
+        res.status(500).json({
+            success: false,
+            message: "Social login failed",
+            error: error.message,
+        });
+    }
+});
 exports.userControllers = {
     register,
     login,
@@ -222,4 +282,5 @@ exports.userControllers = {
     getUser,
     updateUser,
     updateUserRole,
+    socialLogin,
 };

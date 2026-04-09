@@ -13,19 +13,17 @@ const teacherSchema = new Schema<TTeacher>({
       experience: { type: String },
       subjects: [{ type: String }],
       teachingLevel: { type: String },
-
-      availableDays: [{ type: String }],
-      availableTime: { type: String },
-
+      
       linkedin: { type: String },
       facebook: { type: String },
       twitter: { type: String },
       website: { type: String },
 
-      rating: { type: Number, min: 1, max: 5 },
+      rating: { type: Number, min: 1, max: 5,
+        default: 0
+       },
       reviewsCount: { type: Number },
-
-      status: { type: String, enum: ["active", "inactive"] }
+      status: { type: String, enum: ["active", "inactive"], default: "active" },
 }, {
   timestamps: true,
 });

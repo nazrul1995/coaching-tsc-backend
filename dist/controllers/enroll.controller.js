@@ -41,6 +41,7 @@ const enrollCourse = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             courseId,
             courseTitle: course.title,
             price: course.price,
+            creatorEmail: course.creatorEmail,
         });
         // 4. Update enrolledStudents count
         yield courses_model_1.Course.findByIdAndUpdate(courseId, {
@@ -60,6 +61,28 @@ const enrollCourse = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         });
     }
 });
+const getMyEnrolledCourses = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userEmail = req.query.userEmail;
+        if (!userEmail) {
+            return res.status(400).json({ success: false, message: "User email is required" });
+        }
+        const enrollments = yield enrollcourse_model_1.EnrollCourse.find({ userEmail });
+        res.status(200).json({
+            success: true,
+            message: "Enrolled courses retrieved successfully",
+            data: enrollments,
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to retrieve enrolled courses",
+            error: error.message,
+        });
+    }
+});
 exports.enrollControllers = {
     enrollCourse,
+    getMyEnrolledCourses,
 };

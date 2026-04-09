@@ -19,4 +19,5 @@ router.get('/:id', user_controllers_1.userControllers.getUser);
 router.patch("/:id", user_controllers_1.userControllers.updateUser);
 // UPDATE role
 router.patch("/role", user_controllers_1.userControllers.updateUserRole);
+router.post("/social-login", user_controllers_1.userControllers.socialLogin);
 exports.UserRoutes = router;

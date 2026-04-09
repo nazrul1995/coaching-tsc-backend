@@ -10,11 +10,7 @@ export interface TTeacher {
   qualification: string;     // e.g., "MSc in Physics"
   experience: string;        // e.g., "5 years teaching experience"
   subjects: string[];        // Subjects teacher handles
-  teachingLevel: string;     // e.g., "High School", "College", "Middle School"
-
-  // Availability / Schedule
-  availableDays?: string[];  // e.g., ["Monday", "Wednesday"]
-  availableTime?: string;    // e.g., "10:00 - 15:00"
+   teachingLevel?: string[];     // e.g., "High School", "College", "Middle School"
 
   // Social / Contact Links
   linkedin?: string;

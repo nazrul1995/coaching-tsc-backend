@@ -47,8 +47,9 @@ const authorizeRoles = (...roles) => {
 };
 exports.authorizeRoles = authorizeRoles;
 const isOwnerOrAdmin = (req, res, next) => {
+    var _a;
     const userId = req.params.id;
-    if (req.user.role === "admin" || req.user.id === userId) {
+    if (((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) === "admin") {
         return next();
     }
     return res.status(403).json({

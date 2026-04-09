@@ -24,6 +24,14 @@ const eventScema = new mongoose_1.Schema({
         type: String,
         required: true,
     },
+    creatorRole: {
+        type: String,
+        required: true,
+    },
+    creatorEmail: {
+        type: String,
+        required: true,
+    },
     enrolledStudents: {
         type: Number,
         default: 0,

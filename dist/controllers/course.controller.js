@@ -105,6 +105,31 @@ const getCourseById = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         });
     }
 });
+// Get  course by email
+const getMyCourses = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const userEmail = (_a = req.user) === null || _a === void 0 ? void 0 : _a.email;
+        if (!userEmail) {
+            return res.status(400).json({ success: false, message: "User email missing" });
+        }
+        console.log("Fetching courses for email:", userEmail);
+        const courses = yield courses_model_1.Course.find({ creatorEmail: userEmail }); // 🔹 updated field
+        res.status(200).json({
+            success: true,
+            message: "Courses fetched successfully",
+            data: courses,
+        });
+    }
+    catch (err) {
+        console.error("Failed to fetch courses:", err);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch courses",
+            error: err.message,
+        });
+    }
+});
 // Update course
 const updateCourse = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -182,5 +207,6 @@ exports.courseControllers = {
     getCourseById,
     updateCourse,
     deleteCourse,
-    updateCourseRating
+    updateCourseRating,
+    getMyCourses,
 };

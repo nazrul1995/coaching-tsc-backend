@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { Student } from "../model/student.model";
-import { User } from "../model/user.model";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { Teacher } from "../model/teacher.model";
+import { User } from "../model/user.model";
 
 // Helper to catch async errors
 const catchAsync = (fn: Function) => {
@@ -13,8 +13,8 @@ const catchAsync = (fn: Function) => {
 
 // CREATE TeACHER
 export const createTeacher = catchAsync(async (req: AuthRequest, res: Response) => {
-  const { name, email, phone, photo, bio, qualification, experience, subjects, teachingLevel, availableDays, availableTime, linkedin, facebook, twitter, website, rating, reviewsCount } = req.body;
-
+  const { name, email, phone,photoUrl, bio, qualification, experience, subjects, teachingLevel, availableDays, linkedin, facebook, twitter, website, rating, reviewsCount, status } = req.body;
+  console.log(req.body)
   if (!name || !email || !phone) {
     return res.status(400).json({
       success: false,
@@ -34,24 +34,24 @@ export const createTeacher = catchAsync(async (req: AuthRequest, res: Response) 
     name,
     email,
     phone,
-    photo,
+    photoUrl,
     bio,
     qualification,
     experience,
     subjects,
     teachingLevel,
     availableDays,
-    availableTime,
     linkedin,
     facebook,
     twitter,
     website,
     rating,
     reviewsCount,
+    status,
   });
 
   const updatedUser = await User.findOneAndUpdate(
-    { email },
+    {email},
     { role: "teacher" },
     { new: true }
   );
@@ -109,11 +109,45 @@ export const getTeacherByEmail = catchAsync(async (req: Request, res: Response) 
 
 // UPDATE TEACHER
 export const updateTeacher = catchAsync(async (req: Request, res: Response) => {
-  const { name, email, phone, photo, bio, qualification, experience, subjects, teachingLevel, availableDays, availableTime, linkedin, facebook, twitter, website, rating, reviewsCount } = req.body;
+  const {
+    name,
+    email,
+    phone,
+    photoUrl, // ✅ FIXED
+    bio,
+    qualification,
+    experience,
+    subjects,
+    teachingLevel,
+    availableDays,
+    linkedin,
+    facebook,
+    twitter,
+    website,
+    rating,
+    reviewsCount,
+  } = req.body;
 
   const updatedTeacher = await Teacher.findByIdAndUpdate(
     req.params.id,
-    { name, email, phone, photo, bio, qualification, experience, subjects, teachingLevel, availableDays, availableTime, linkedin, facebook, twitter, website, rating, reviewsCount },
+    {
+      name,
+      email,
+      phone,
+      photoUrl,
+      bio,
+      qualification,
+      experience,
+      subjects,
+      teachingLevel,
+      availableDays,
+      linkedin,
+      facebook,
+      twitter,
+      website,
+      rating,
+      reviewsCount,
+    },
     { new: true, runValidators: true }
   );
 
@@ -130,7 +164,6 @@ export const updateTeacher = catchAsync(async (req: Request, res: Response) => {
     teacher: updatedTeacher,
   });
 });
-
 // DELETE TEACHER
 export const deleteTeacher = catchAsync(async (req: Request, res: Response) => {
   const teacher = await Teacher.findByIdAndDelete(req.params.id);

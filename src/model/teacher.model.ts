@@ -6,24 +6,23 @@ const teacherSchema = new Schema<TTeacher>({
       name: { type: String, required: true },
       email: { type: String, required: true, unique: true },
       phone: { type: String, required: true },
-      photo: { type: String },
+      photoUrl: { type: String },
 
       bio: { type: String },
       qualification: { type: String },
       experience: { type: String },
       subjects: [{ type: String }],
-      teachingLevel: { type: String },
+      teachingLevel: [{ type: String }],
+      availableDays : [{ type: String }],
       
       linkedin: { type: String },
       facebook: { type: String },
       twitter: { type: String },
       website: { type: String },
 
-      rating: { type: Number, min: 1, max: 5,
-        default: 0
-       },
-      reviewsCount: { type: Number },
-      status: { type: String, enum: ["active", "inactive"], default: "active" },
+      rating: { type: Number, default: 1 },
+      reviewsCount: { type: Number, default: 1 },
+      status: { type: String, enum: ["active", "inactive","pending"], default: "pending" },
 }, {
   timestamps: true,
 });

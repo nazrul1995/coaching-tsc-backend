@@ -7,7 +7,11 @@ const userSchema = new Schema<IUser>({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true, select: false },
-  role: { type: String, default: 'user' },
+ role: {
+    type: String,
+    enum: ['student', 'teacher', 'user', 'admin'],
+    default: 'user'
+  },
   image: { type: String },
 }, {
   timestamps: true,

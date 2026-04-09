@@ -3,14 +3,15 @@ export interface TTeacher {
   name: string;
   email: string;
   phone: string;
-  photo: string;
+  photoUrl: string;
 
   // Professional Info
   bio: string;               // Short introduction
   qualification: string;     // e.g., "MSc in Physics"
   experience: string;        // e.g., "5 years teaching experience"
   subjects: string[];        // Subjects teacher handles
-   teachingLevel?: string[];     // e.g., "High School", "College", "Middle School"
+  teachingLevel?: string[];     // e.g., "High School", "College", "Middle School"
+  availableDays?: string[];     // e.g., "High School", "College", "Middle School"
 
   // Social / Contact Links
   linkedin?: string;

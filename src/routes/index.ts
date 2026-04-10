@@ -3,7 +3,6 @@ import { EventRoutes } from './event.route';
 // import { AiRoutes } from './ai.routes';
 import { UserRoutes } from './user.routes';
 import { AiRoutes } from './ai.routes';
-import path from 'node:path';
 import { CourseRoutes } from './course.route';
 import { EnrollRoutes } from './enroll.routes';
 import { StudentRoutes } from './students.routes';

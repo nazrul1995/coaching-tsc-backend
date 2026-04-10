@@ -13,7 +13,7 @@ const catchAsync = (fn: Function) => {
 // CREATE STUDENT
 export const createStudent = catchAsync(async (req: AuthRequest, res: Response) => {
   const { name, email, phone, className, batch, group, photo } = req.body;
-
+  console.log(name, email, phone, className, batch, group, photo)
   if (!name || !email || !phone || !className) {
     return res.status(400).json({
       success: false,
@@ -82,10 +82,10 @@ export const getStudentByemail = catchAsync(async (req: Request, res: Response) 
 // UPDATE STUDENT
 export const updateStudent = catchAsync(async (req: Request, res: Response) => {
   const { name, email, phone, className, batch, group, photoUrl } = req.body;
-
+  console.log(name, email, phone, className, batch, group, photoUrl)
   const updatedStudent = await Student.findByIdAndUpdate(
     req.params.id,
-    { name, email, phone, className, batch, group, photoUrl },
+    { name, email, phone, className, batch, group, photo: photoUrl },
     { new: true, runValidators: true }
   );
 
@@ -96,13 +96,21 @@ export const updateStudent = catchAsync(async (req: Request, res: Response) => {
     });
   }
 
-  res.status(200).json({
+  const updatedUser = await User.findOneAndUpdate(
+    { email: updatedStudent.email }, // or req.body.email
+    {
+      name,
+    },
+    { new: true, runValidators: true }
+  );
+
+  return res.status(200).json({
     success: true,
     message: "Student updated successfully",
     student: updatedStudent,
+    user: updatedUser,
   });
 });
-
 // DELETE STUDENT
 export const deleteStudent = catchAsync(async (req: Request, res: Response) => {
   const student = await Student.findByIdAndDelete(req.params.id);

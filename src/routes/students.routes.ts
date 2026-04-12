@@ -7,6 +7,8 @@ const router = express.Router();
 router.post('/', studentControllers.createStudent);
 // get all students
 router.get('/', studentControllers.getAllStudents);
+// get all students
+router.get('/', studentControllers.getAllStudents);
 // get single student by email
 router.get('/email/:email', studentControllers.getStudentByemail);
 // update student

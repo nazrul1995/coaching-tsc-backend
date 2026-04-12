@@ -10,8 +10,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.teacherControllers = exports.deleteTeacher = exports.updateTeacher = exports.getTeacherByEmail = exports.getTeacherById = exports.getAllTeachers = exports.createTeacher = void 0;
-const user_model_1 = require("../model/user.model");
 const teacher_model_1 = require("../model/teacher.model");
+const user_model_1 = require("../model/user.model");
 // Helper to catch async errors
 const catchAsync = (fn) => {
     return (req, res, next) => {
@@ -20,7 +20,8 @@ const catchAsync = (fn) => {
 };
 // CREATE TeACHER
 exports.createTeacher = catchAsync((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { name, email, phone, photo, bio, qualification, experience, subjects, teachingLevel, availableDays, availableTime, linkedin, facebook, twitter, website, rating, reviewsCount } = req.body;
+    const { name, email, phone, photoUrl, bio, qualification, experience, subjects, teachingLevel, availableDays, linkedin, facebook, twitter, website, rating, reviewsCount, status } = req.body;
+    console.log(req.body);
     if (!name || !email || !phone) {
         return res.status(400).json({
             success: false,
@@ -38,20 +39,20 @@ exports.createTeacher = catchAsync((req, res) => __awaiter(void 0, void 0, void 
         name,
         email,
         phone,
-        photo,
+        photoUrl,
         bio,
         qualification,
         experience,
         subjects,
         teachingLevel,
         availableDays,
-        availableTime,
         linkedin,
         facebook,
         twitter,
         website,
         rating,
         reviewsCount,
+        status,
     });
     const updatedUser = yield user_model_1.User.findOneAndUpdate({ email }, { role: "teacher" }, { new: true });
     res.status(201).json({
@@ -102,8 +103,26 @@ exports.getTeacherByEmail = catchAsync((req, res) => __awaiter(void 0, void 0, v
 }));
 // UPDATE TEACHER
 exports.updateTeacher = catchAsync((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { name, email, phone, photo, bio, qualification, experience, subjects, teachingLevel, availableDays, availableTime, linkedin, facebook, twitter, website, rating, reviewsCount } = req.body;
-    const updatedTeacher = yield teacher_model_1.Teacher.findByIdAndUpdate(req.params.id, { name, email, phone, photo, bio, qualification, experience, subjects, teachingLevel, availableDays, availableTime, linkedin, facebook, twitter, website, rating, reviewsCount }, { new: true, runValidators: true });
+    const { name, email, phone, photoUrl, // ✅ FIXED
+    bio, qualification, experience, subjects, teachingLevel, availableDays, linkedin, facebook, twitter, website, rating, reviewsCount, } = req.body;
+    const updatedTeacher = yield teacher_model_1.Teacher.findByIdAndUpdate(req.params.id, {
+        name,
+        email,
+        phone,
+        photoUrl,
+        bio,
+        qualification,
+        experience,
+        subjects,
+        teachingLevel,
+        availableDays,
+        linkedin,
+        facebook,
+        twitter,
+        website,
+        rating,
+        reviewsCount,
+    }, { new: true, runValidators: true });
     if (!updatedTeacher) {
         return res.status(404).json({
             success: false,

@@ -13,7 +13,6 @@ const catchAsync = (fn: Function) => {
 // CREATE STUDENT
 export const createStudent = catchAsync(async (req: AuthRequest, res: Response) => {
   const { name, email, phone, className, batch, group, photo } = req.body;
-  console.log(name, email, phone, className, batch, group, photo)
   if (!name || !email || !phone || !className) {
     return res.status(400).json({
       success: false,
@@ -53,13 +52,24 @@ export const createStudent = catchAsync(async (req: AuthRequest, res: Response) 
   });
 });
 
-// GET ALL STUDENTS
-export const getAllStudents = catchAsync(async (_req: Request, res: Response) => {
-  const students = await Student.find();
+
+// GET ALL STUDENTS (OPTIONAL FILTER BY CLASS)
+export const getAllStudents = catchAsync(async (req: Request, res: Response) => {
+  const className = req.query.class as string;
+
+  // build filter dynamically
+  const filter: any = {};
+
+  if (className) {
+    filter.className = className;
+  }
+
+  const students = await Student.find(filter).sort({ createdAt: -1 });
+
   res.status(200).json({
     success: true,
-    message: "Students retrieved successfully",
-    students,
+    message: 'Students retrieved successfully',
+    data: students, // ✅ better API structure
   });
 });
 

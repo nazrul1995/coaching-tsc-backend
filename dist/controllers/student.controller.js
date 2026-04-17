@@ -20,8 +20,7 @@ const catchAsync = (fn) => {
 };
 // CREATE STUDENT
 exports.createStudent = catchAsync((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { name, email, phone, className, batch, group, photo } = req.body;
-    console.log(name, email, phone, className, batch, group, photo);
+    const { name, email, phone, className, batch, group, photo, institution } = req.body;
     if (!name || !email || !phone || !className) {
         return res.status(400).json({
             success: false,
@@ -43,6 +42,7 @@ exports.createStudent = catchAsync((req, res) => __awaiter(void 0, void 0, void 
         batch,
         group,
         photo,
+        institution,
     });
     const updatedUser = yield user_model_1.User.findOneAndUpdate({ email }, { role: "student" }, { new: true });
     res.status(201).json({
@@ -52,13 +52,19 @@ exports.createStudent = catchAsync((req, res) => __awaiter(void 0, void 0, void 
         user: updatedUser,
     });
 }));
-// GET ALL STUDENTS
-exports.getAllStudents = catchAsync((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const students = yield student_model_1.Student.find();
+// GET ALL STUDENTS (OPTIONAL FILTER BY CLASS)
+exports.getAllStudents = catchAsync((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const className = req.query.class;
+    // build filter dynamically
+    const filter = {};
+    if (className) {
+        filter.className = className;
+    }
+    const students = yield student_model_1.Student.find(filter).sort({ createdAt: -1 });
     res.status(200).json({
         success: true,
-        message: "Students retrieved successfully",
-        students,
+        message: 'Students retrieved successfully',
+        data: students, // ✅ better API structure
     });
 }));
 // GET STUDENT BY EMAIL

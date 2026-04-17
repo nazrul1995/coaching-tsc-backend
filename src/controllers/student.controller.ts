@@ -12,7 +12,7 @@ const catchAsync = (fn: Function) => {
 
 // CREATE STUDENT
 export const createStudent = catchAsync(async (req: AuthRequest, res: Response) => {
-  const { name, email, phone, className, batch, group, photo } = req.body;
+  const { name, email, phone, className, batch, group, photo,institution } = req.body;
   if (!name || !email || !phone || !className) {
     return res.status(400).json({
       success: false,
@@ -36,6 +36,7 @@ export const createStudent = catchAsync(async (req: AuthRequest, res: Response) 
     batch,
     group,
     photo,
+    institution,
   });
 
   const updatedUser = await User.findOneAndUpdate(

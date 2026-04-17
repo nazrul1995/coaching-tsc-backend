@@ -11,6 +11,8 @@ const router = express_1.default.Router();
 router.post('/', student_controller_1.studentControllers.createStudent);
 // get all students
 router.get('/', student_controller_1.studentControllers.getAllStudents);
+// get all students
+router.get('/', student_controller_1.studentControllers.getAllStudents);
 // get single student by email
 router.get('/email/:email', student_controller_1.studentControllers.getStudentByemail);
 // update student

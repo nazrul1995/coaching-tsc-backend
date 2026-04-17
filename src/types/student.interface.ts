@@ -5,6 +5,7 @@ export interface TStudent {
   email: string;
   phone: string;
   className: string;
+  institution: string;
   batch?: string;
   group?: Group;
   photo: string;

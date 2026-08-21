@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import app from './app';
 import config from './config';
+import { initBillingCron } from './config/corn';
 
 async function main() {
   try {
@@ -10,7 +11,7 @@ async function main() {
 
     await mongoose.connect(config.database_url);
     console.log('Connected to MongoDB successfully');
-
+    initBillingCron();
     app.listen(config.port, () => {
       console.log(`Server is listening on port ${config.port}`);
     });

@@ -1,8 +1,11 @@
 import express from 'express';
 import { studentControllers } from '../controllers/student.controller';
+import { authorizeRoles, verifyToken } from '../middleware/auth.middleware';
 
 const router = express.Router();
 
+// create student by admin
+router.post('/admin/add', verifyToken,authorizeRoles("admin"), studentControllers.createStudentByAdmin);
 // create student
 router.post('/', studentControllers.createStudent);
 // get all students

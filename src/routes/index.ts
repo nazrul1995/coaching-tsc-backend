@@ -1,6 +1,5 @@
 import express from 'express';
 import { EventRoutes } from './event.route';
-// import { AiRoutes } from './ai.routes';
 import { UserRoutes } from './user.routes';
 import { AiRoutes } from './ai.routes';
 import { CourseRoutes } from './course.route';
@@ -8,6 +7,7 @@ import { EnrollRoutes } from './enroll.routes';
 import { StudentRoutes } from './students.routes';
 import { TeacherRoutes } from './teacher.route';
 import { ResultRoutes } from './result.route';
+import { paymentRoutes } from './payment.routes';
 
 
 const router = express.Router();
@@ -44,6 +44,10 @@ const moduleRoutes = [
   {
     path: "/results",
     route: ResultRoutes,
+  },
+  {
+    path: "/payments",
+    route: paymentRoutes,
   }
 ];
 

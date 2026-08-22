@@ -4,33 +4,42 @@ import { StudentFeeControllers } from "../controllers/payment.controller";
 
 const router = express.Router();
 
-// ১. ম্যানুয়াল ফি জেনারেটর এপিআই
+// Apply token verification middleware to all payment routes
+router.use(verifyToken);
+
+// Trigger button endpoint: Generates new cycles & updates past-due statuses
 router.post(
-  "/generate",
-  verifyToken,
+  "/sync-fees",
   authorizeRoles("admin"),
-  StudentFeeControllers.generateNextCycleFee
+  StudentFeeControllers.syncStudentFees
 );
 
+// Get all student fees (filterable by status, date range)
+router.get(
+  "/",
+  authorizeRoles("admin"),
+  StudentFeeControllers.getAllFees
+);
 
-// GET all fees summary for dashboard
-router.get('/fees',verifyToken,
- StudentFeeControllers.getStudentFees);
+// Get payment history & total outstanding balance for a specific student
+router.get(
+  "/student/:studentId",
+  authorizeRoles("admin", "student"),
+  StudentFeeControllers.getStudentFeeHistory
+);
 
-// ২. ফি কালেকশন এপিআই (FIFO + PaymentLog)
+// Collect payment and apply FIFO distribution across due cycles
 router.post(
   "/pay",
-  verifyToken,
   authorizeRoles("admin"),
   StudentFeeControllers.collectPayment
 );
 
-// ৩. কোনো স্টুডেন্টের বিস্তারিত পেমেন্ট ট্রানজেকশন হিস্ট্রি দেখা
+// Get system financial summary
 router.get(
-  "/logs/:studentId",
-  verifyToken,
-  authorizeRoles("admin", "student"),
-  StudentFeeControllers.getStudentPaymentLogs
+  "/summary",
+  authorizeRoles("admin"),
+  StudentFeeControllers.getPaymentSummary
 );
 
 export const paymentRoutes = router;

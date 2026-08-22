@@ -21,4 +21,4 @@ const studentSchema = new Schema<TStudent>({
   timestamps: true,
 });
 
-export const Student = model<TStudent>('Students', studentSchema);
+export const Student = model<TStudent>('Student', studentSchema);

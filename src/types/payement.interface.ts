@@ -1,5 +1,7 @@
 import { Types } from "mongoose";
 
+export type FeeStatus = "unpaid" | "partial" | "paid" | "overdue";
+
 export interface IStudentFee {
   _id?: Types.ObjectId;
   student: Types.ObjectId;
@@ -9,7 +11,7 @@ export interface IStudentFee {
   amount: number;
   paidAmount: number;
   paymentDate?: Date;
-  status: "unpaid" | "partial" | "paid" | "overdue";
+  status: FeeStatus;
   remarks?: string;
   createdAt?: Date;
   updatedAt?: Date;

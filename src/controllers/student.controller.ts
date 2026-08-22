@@ -3,6 +3,8 @@ import { Student } from "../model/student.model";
 import { AuthRequest } from "../middleware/auth.middleware";
 import bcrypt from "bcrypt";
 import { User } from "../model/user.model";
+import { StudentFee } from "../model/payment.model";
+import mongoose from "mongoose";
 
 // Helper to catch async errors
 const catchAsync = (fn: Function) => {
@@ -13,7 +15,7 @@ const catchAsync = (fn: Function) => {
 
 
 export const createStudentByAdmin = catchAsync(
-  async (req: AuthRequest, res: Response) => {
+  async (req: any, res: Response) => {
     const {
       name,
       email,
@@ -27,13 +29,11 @@ export const createStudentByAdmin = catchAsync(
       guradianName,
       monthlyFee,
       admissionDate,
-
     } = req.body;
-console.log(req.body)
-    // ==========================
-    // Validate required fields
-    // ==========================
 
+    // ==========================
+    // 1. Validate required fields
+    // ==========================
     if (
       !name ||
       !email ||
@@ -52,7 +52,6 @@ console.log(req.body)
     }
 
     const fee = Number(monthlyFee);
-
     if (!Number.isFinite(fee) || fee < 0) {
       return res.status(400).json({
         success: false,
@@ -60,12 +59,22 @@ console.log(req.body)
       });
     }
 
-    // ==========================
-    // Check existing student
-    // ==========================
+    // admissionDate সঠিক ফরম্যাটে হ্যান্ডেল করা
+    const parsedAdmissionDate = admissionDate
+      ? new Date(admissionDate)
+      : new Date();
 
+    if (isNaN(parsedAdmissionDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid admission date provided",
+      });
+    }
+
+    // ==========================
+    // 2. Check Existing Records
+    // ==========================
     const existingStudent = await Student.findOne({ email });
-
     if (existingStudent) {
       return res.status(400).json({
         success: false,
@@ -73,12 +82,7 @@ console.log(req.body)
       });
     }
 
-    // ==========================
-    // Check existing user
-    // ==========================
-
     const existingUser = await User.findOne({ email });
-
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -87,46 +91,75 @@ console.log(req.body)
     }
 
     // ==========================
-    // Create User
+    // 3. Create User, Student & Initial Fee using Transaction
     // ==========================
-
-    // এখানে bcrypt.hash() করবেন না।
-    // User model-এর pre-save middleware password hash করবে।
-
-    const newUser = await User.create({
-      name,
-      email,
-      password,
-      role: "student",
-      image: photo,
-    });
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
     try {
-      // ==========================
-      // Create Student
-      // ==========================
+      // Create User
+      const [newUser] = await User.create(
+        [
+          {
+            name,
+            email,
+            password,
+            role: "student",
+            image: photo,
+          },
+        ],
+        { session }
+      );
 
-      const newStudent = await Student.create({
-        name,
-        email,
-        phone,
-        className,
-        guradianName,
-        batch,
-        group,
-        photo,
-        institution,
-        monthlyFee: fee,
-        admissionDate: admissionDate || new Date(admissionDate),
-      });
+      // Create Student
+      const [newStudent] = await Student.create(
+        [
+          {
+            name,
+            email,
+            phone,
+            className,
+            guradianName,
+            batch,
+            group,
+            photo,
+            institution,
+            monthlyFee: fee,
+            admissionDate: parsedAdmissionDate,
+          },
+        ],
+        { session }
+      );
+
+      // ==========================
+      // 4. Generate First Cycle Fee Automatically
+      // ==========================
+      const cycleStartDate = new Date(parsedAdmissionDate);
+      const cycleEndDate = new Date(cycleStartDate);
+      cycleEndDate.setMonth(cycleEndDate.getMonth() + 1);
+
+      const dueDate = new Date(cycleEndDate);
+      dueDate.setDate(dueDate.getDate() + 7); // গ্রেস পিরিয়ডসহ Due Date (৭ দিন)
+
+      const initialFee = await new StudentFee({
+        student: newStudent._id,
+        cycleStartDate,
+        cycleEndDate,
+        dueDate,
+        amount: fee,
+        paidAmount: 0,
+        status: "unpaid",
+      }).save({ session });
+
+      // Transaction সফল হলে Commit করা
+      await session.commitTransaction();
+      session.endSession();
 
       return res.status(201).json({
         success: true,
-        message:
-          "Student and student account created successfully",
-
+        message: "Student, User account, and initial Fee record created successfully",
         student: newStudent,
-
+        initialFee,
         user: {
           id: newUser._id,
           name: newUser.name,
@@ -135,14 +168,14 @@ console.log(req.body)
           image: newUser.image,
         },
       });
-    } catch (error) {
-      // Student create fail করলে User rollback
-      await User.findByIdAndDelete(newUser._id);
-
+    } catch (error: any) {
+      // কোনো একটি স্টেপে ভুল হলে পুরো ট্রানজেকশন অটো রোলব্যাক হয়ে যাবে
+      await session.abortTransaction();
+      session.endSession();
       throw error;
     }
   }
-);
+)
 
 
 

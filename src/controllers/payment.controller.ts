@@ -1,201 +1,235 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { Student } from "../model/student.model"; // আপনার প্রজেক্টের পাথ অনুযায়ী অ্যাডজাস্ট করুন
-import { StudentFee, PaymentLog } from "../model/payment.model";
-import { AuthRequest } from "../middleware/auth.middleware";
+import { Student } from "../model/student.model";
+import { StudentFee } from "../model/payment.model";
 
-// 1. Core Generator Engine (Reusable Engine)
-export const evaluateBillingCyclesEngine = async () => {
-  // ১. কেবল যেসব স্টুডেন্টের admissionDate এবং monthlyFee বিদ্যমান আছে তাদের ফিল্টার করুন
-  const activeStudents = await Student.find({
-    admissionDate: { $exists: true, $ne: null },
-    monthlyFee: { $exists: true, $ne: null },
-  });
-
-  let createdCount = 0;
-  const now = new Date();
-
-  for (const student of activeStudents) {
-    // admissionDate সঠিক Date Object কিনা তা নিশ্চিত করা
-    const rawAdmissionDate = new Date(student.admissionDate);
-    if (isNaN(rawAdmissionDate.getTime())) {
-      console.warn(`[SKIP] Invalid admissionDate for student: ${student._id}`);
-      continue; // তারিখ ভুল থাকলে এই স্টুডেন্ট স্কিপ হবে
-    }
-
-    // monthlyFee সঠিক সংখ্যা কিনা তা নিশ্চিত করা
-    const studentFeeAmount = Number(student.monthlyFee);
-    if (!Number.isFinite(studentFeeAmount) || studentFeeAmount <= 0) {
-      console.warn(`[SKIP] Invalid monthlyFee for student: ${student._id}`);
-      continue;
-    }
-
-    let hasMoreCycles = true;
-
-    while (hasMoreCycles) {
-      const lastFee = await StudentFee.findOne({ student: student._id }).sort({
-        cycleEndDate: -1,
-      });
-
-      let cycleStartDate: Date;
-      if (lastFee && !isNaN(new Date(lastFee.cycleEndDate).getTime())) {
-        cycleStartDate = new Date(lastFee.cycleEndDate);
-      } else {
-        cycleStartDate = new Date(rawAdmissionDate);
-      }
-
-      const cycleEndDate = new Date(cycleStartDate);
-      cycleEndDate.setMonth(cycleEndDate.getMonth() + 1);
-
-      if (now < cycleEndDate) {
-        hasMoreCycles = false;
-        break;
-      }
-
-      const dueDate = new Date(cycleEndDate);
-      dueDate.setDate(dueDate.getDate() + 7);
-
-      await StudentFee.create({
-        student: student._id,
-        cycleStartDate,
-        cycleEndDate,
-        dueDate,
-        amount: studentFeeAmount, // Validated amount
-        paidAmount: 0,
-        status: "unpaid",
-      });
-
-      createdCount++;
-    }
-  }
-
-  // Overdue Sync
-  await StudentFee.updateMany(
-    { status: { $ne: "paid" }, dueDate: { $lt: now } },
-    { $set: { status: "overdue" } }
-  );
-
-  return createdCount;
+// Helper function to handle month increments cleanly
+const addOneMonth = (date: Date): Date => {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + 1);
+  return result;
 };
 
-// API Endpoint Handler for Manual Generator
-const generateNextCycleFee = async (req: Request, res: Response) => {
+export const generateStudentCycles = async (req: Request, res: Response) => {
   try {
-    const createdCount = await evaluateBillingCyclesEngine();
+    const today = new Date();
+    const students = await Student.find({ isActive: { $ne: false } });
+
+    let createdCount = 0;
+    const newCycles = [];
+
+    for (const student of students) {
+      if (!student.admissionDate) continue;
+
+      // Find last generated fee
+      const lastFee = await StudentFee.findOne({ student: student._id }).sort({ cycleEndDate: -1 });
+
+      let currentStart = lastFee ? new Date(lastFee.cycleEndDate) : new Date(student.admissionDate);
+
+      while (currentStart < today) {
+        const currentEnd = addOneMonth(currentStart);
+        const dueDate = new Date(currentEnd);
+
+        newCycles.push({
+          student: student._id,
+          cycleStartDate: new Date(currentStart),
+          cycleEndDate: new Date(currentEnd),
+          dueDate: dueDate,
+          amount: student.monthlyFee || 0,
+          paidAmount: 0,
+          status: "unpaid",
+        });
+
+        createdCount++;
+        currentStart = currentEnd;
+      }
+    }
+
+    // Insert in bulk to improve performance
+    if (newCycles.length > 0) {
+      await StudentFee.insertMany(newCycles, { ordered: false });
+    }
+
     return res.status(200).json({
       success: true,
-      message: "Billing cycles evaluated and database synced successfully",
-      newFeesCreated: createdCount,
+      message: `Successfully created ${createdCount} missing fee cycles.`,
     });
   } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to generate billing cycle fees",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 2. Collect Payment (With Audit Log & FIFO)
+export const getAllPayments = async (req: Request, res: Response) => {
+  try {
+    const today = new Date();
+
+    // 1. Mark unpaid cycles as overdue if due date has passed
+    await StudentFee.updateMany(
+      {
+        dueDate: { $lt: today },
+        status: "unpaid",
+      },
+      { $set: { status: "overdue" } }
+    );
+
+    // 2. Fetch all cycles with populated student info
+    const payments = await StudentFee.find()
+      .populate({
+        path: "student",
+        select: "name roll email phone",
+      })
+      .sort({ cycleStartDate: -1 })
+      .lean();
+
+    // 3. Map result so studentId maps cleanly to populated student
+    const formattedPayments = payments.map((fee) => ({
+      ...fee,
+      studentId: fee.student, // Mapping for Next.js frontend support
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedPayments.length,
+      data: formattedPayments,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+// Retrieve payment records with status and date filtering
+const getAllFees = async (req: Request, res: Response) => {
+  try {
+    const { status, startDate, endDate } = req.query;
+    const filter: Record<string, any> = {};
+
+    if (status) filter.status = status;
+    if (startDate || endDate) {
+      filter.dueDate = {};
+      if (startDate) filter.dueDate.$gte = new Date(startDate as string);
+      if (endDate) filter.dueDate.$lte = new Date(endDate as string);
+    }
+
+    const fees = await StudentFee.find(filter)
+      .populate("student", "name email phone className monthlyFee admissionDate")
+      .sort({ dueDate: -1 });
+
+    const data = fees.map((fee) => ({
+      ...fee.toObject(),
+      dueAmount: fee.amount - fee.paidAmount,
+    }));
+
+    return res.status(200).json({ success: true, count: data.length, data });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Retrieve individual student ledger and balance summary
+const getStudentFeeHistory = async (req: Request, res: Response) => {
+  try {
+    const { studentId } = req.params;
+
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ success: false, message: "Student not found" });
+    }
+
+    const fees = await StudentFee.find({ student: studentId }).sort({ cycleStartDate: -1 });
+
+    const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
+    const totalPaid = fees.reduce((sum, f) => sum + f.paidAmount, 0);
+    const totalOutstanding = totalAmount - totalPaid;
+
+    const history = fees.map((fee) => ({
+      ...fee.toObject(),
+      dueAmount: fee.amount - fee.paidAmount,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      student: {
+        id: student._id,
+        name: student.name,
+        admissionDate: student.admissionDate,
+        monthlyFee: student.monthlyFee,
+      },
+      summary: { totalAmount, totalPaid, totalOutstanding },
+      history,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Collect payment and apply to oldest due cycles first (Transaction-Safe)
 const collectPayment = async (req: Request, res: Response) => {
-  console.log("[Payment Collection] Request Body:", req.body);
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { studentId, amount, paymentMethod, trxId, remarks } = req.body;
-    const adminId = (req as any).user?._id; // Auth middleware থেকে পাওয়া admin user ID
+    const { studentId, amount } = req.body;
     const paymentAmount = Number(amount);
 
     if (!studentId || !paymentAmount || paymentAmount <= 0) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({
-        success: false,
-        message: "Valid Student ID and payment amount (>0) are required",
-      });
+      return res.status(400).json({ success: false, message: "Valid studentId and positive amount required." });
     }
 
-    const student = await Student.findById(studentId).session(session);
-    if (!student) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
-    }
-
-    // বকেয়া বিলগুলো বের করা (পুরোনো সাইকেল আগে)
-    const pendingFees = await StudentFee.find({
+    // Get all outstanding fees sorted by oldest cycle first
+    const dueFees = await StudentFee.find({
       student: studentId,
       status: { $in: ["unpaid", "partial", "overdue"] },
     })
       .sort({ cycleStartDate: 1 })
       .session(session);
 
-    if (pendingFees.length === 0) {
+    if (dueFees.length === 0) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({
-        success: false,
-        message: "This student has no due fees",
-      });
+      return res.status(400).json({ success: false, message: "Student has no outstanding dues." });
     }
 
-    const totalDue = pendingFees.reduce(
-      (sum, fee) => sum + (fee.amount - fee.paidAmount),
-      0
-    );
+    const totalOutstanding = dueFees.reduce((sum, f) => sum + (f.amount - f.paidAmount), 0);
 
-    if (paymentAmount > totalDue) {
+    if (paymentAmount > totalOutstanding) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
-        message: `Payment amount (${paymentAmount}) exceeds total due (${totalDue})`,
-        totalDue,
+        message: "Payment exceeds total outstanding balance.",
+        totalOutstanding,
       });
     }
 
     let remainingPayment = paymentAmount;
-    const paymentLogs = [];
+    const updatedFees = [];
 
-    for (const fee of pendingFees) {
+    for (const fee of dueFees) {
       if (remainingPayment <= 0) break;
 
-      const dueAmount = fee.amount - fee.paidAmount;
-      const paymentForThisFee = Math.min(remainingPayment, dueAmount);
+      const cycleDue = fee.amount - fee.paidAmount;
+      const allocatedAmount = Math.min(remainingPayment, cycleDue);
 
-      fee.paidAmount += paymentForThisFee;
+      fee.paidAmount += allocatedAmount;
+      fee.paymentDate = new Date();
 
       if (fee.paidAmount >= fee.amount) {
-        fee.paidAmount = fee.amount;
         fee.status = "paid";
       } else {
         fee.status = "partial";
       }
 
       await fee.save({ session });
+      remainingPayment -= allocatedAmount;
 
-      // Audit Log তৈরি করা
-      const log = await PaymentLog.create(
-        [
-          {
-            student: student._id,
-            fee: fee._id,
-            amountPaid: paymentForThisFee,
-            paymentMethod: paymentMethod || "cash",
-            trxId,
-            collectedBy: adminId,
-            remarks,
-          },
-        ],
-        { session }
-      );
-
-      paymentLogs.push(log[0]);
-      remainingPayment -= paymentForThisFee;
+      updatedFees.push({
+        feeId: fee._id,
+        cycle: `${fee.cycleStartDate.toISOString().slice(0, 10)} to ${fee.cycleEndDate.toISOString().slice(0, 10)}`,
+        allocatedAmount,
+        remainingDue: fee.amount - fee.paidAmount,
+        status: fee.status,
+      });
     }
 
     await session.commitTransaction();
@@ -203,65 +237,129 @@ const collectPayment = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: "Payment collected successfully and logged",
-      paymentAmount,
-      logs: paymentLogs,
+      message: "Payment processed successfully.",
+      collectedAmount: paymentAmount,
+      updatedFees,
     });
   } catch (error: any) {
     await session.abortTransaction();
     session.endSession();
-    return res.status(500).json({
-      success: false,
-      message: "Failed to collect payment",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 3. Get Student Payment Audit History
-const getStudentPaymentLogs = async (req: Request, res: Response) => {
+// Financial overview across all dynamic cycles
+export const getPaymentSummary = async (req: Request, res: Response) => {
   try {
-    const { studentId } = req.params;
-    const logs = await PaymentLog.find({ student: studentId })
-      .populate("collectedBy", "name email")
-      .populate("fee", "cycleStartDate cycleEndDate")
-      .sort({ createdAt: -1 });
+    const stats = await StudentFee.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalCollected: { $sum: "$paidAmount" },
+          totalPending: {
+            $sum: {
+              $cond: [
+                { $ne: ["$status", "paid"] },
+                { $subtract: ["$amount", "$paidAmount"] },
+                0,
+              ],
+            },
+          },
+          overdueCount: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "overdue"] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    const summary = stats[0] || {
+      totalCollected: 0,
+      totalPending: 0,
+      overdueCount: 0,
+    };
 
     return res.status(200).json({
       success: true,
-      data: logs,
+      data: summary,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ==========================================
+// Manual Trigger: Generate Due Cycles & Update Overdues
+// ==========================================
+const syncStudentFees = async (req: Request, res: Response) => {
+  try {
+    const today = new Date();
+
+    // 1. Mark past-due unpaid fees as overdue
+    const overdueResult = await StudentFee.updateMany(
+      { dueDate: { $lt: today }, status: "unpaid" },
+      { $set: { status: "overdue" } }
+    );
+
+    // 2. Fetch active students
+    const students = await Student.find({ isActive: { $ne: false } });
+
+    let newCyclesCreated = 0;
+
+    for (const student of students) {
+      if (!student.admissionDate) continue;
+
+      // Find the last generated cycle for this student
+      const lastFee = await StudentFee.findOne({ student: student._id }).sort({
+        cycleEndDate: -1,
+      });
+
+      let nextStart = lastFee
+        ? new Date(lastFee.cycleEndDate)
+        : new Date(student.admissionDate);
+
+      // Generate cycles up to current date
+      while (nextStart <= today) {
+        const nextEnd = addOneMonth(nextStart);
+
+        await StudentFee.create({
+          student: student._id,
+          cycleStartDate: nextStart,
+          cycleEndDate: nextEnd,
+          dueDate: nextEnd,
+          amount: student.monthlyFee,
+          paidAmount: 0,
+          status: "unpaid",
+        });
+
+        newCyclesCreated++;
+        nextStart = nextEnd;
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Student fee system synced successfully.",
+      summary: {
+        overdueFeesUpdated: overdueResult.modifiedCount,
+        newCyclesCreated,
+      },
     });
   } catch (error: any) {
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch logs",
-      error: error.message,
-    });
-  }
-};
-
-export const getStudentFees = async (req: AuthRequest, res: Response) => {
-  try {
-    const fees = await StudentFee.find()
-      .populate('student', 'name email phone')
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      data: fees,
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to fetch payment fees',
+      message: "Failed to sync student fees",
       error: error.message,
     });
   }
 };
 
 export const StudentFeeControllers = {
-  generateNextCycleFee,
+  generateStudentCycles,
+  getAllFees,
+  getStudentFeeHistory,
   collectPayment,
-  getStudentPaymentLogs,
-  getStudentFees,
+  getPaymentSummary,
+  syncStudentFees,
 };

@@ -110,11 +110,22 @@ const login = async (req: Request, res: Response) => {
 
     // Generate token
     const token = jwt.sign(
-      { email: user.email, role: user.role },
+      {
+        email: user.email,
+        role: user.role,
+      },
       config.jwt_secret as Secret,
-      { expiresIn: config.jwt_expires_in as any }
+      {
+        expiresIn: config.jwt_expires_in as any,
+      }
     );
 
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
     // Omit password from response
     const userResponse = user.toObject();
     delete userResponse.password;
@@ -245,7 +256,7 @@ const socialLogin = async (req: Request, res: Response) => {
 
     // If credential (Google JWT) is provided, decode it
     let userData: any = { name, email, image };
-    
+
     if (credential) {
       try {
         // Decode Google JWT without verification (we trust Google)

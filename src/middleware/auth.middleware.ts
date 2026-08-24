@@ -13,31 +13,50 @@ export const verifyToken = (
   next: NextFunction
 ) => {
   try {
-    const authHeader = req.headers.authorization;
+    // 1. প্রথমে HttpOnly cookie থেকে token নেবে
+    let token = req.cookies?.token;
 
-    if (!authHeader?.startsWith("Bearer ")) {
+    // 2. Cookie-তে না থাকলে Authorization header থেকে নেবে
+    if (!token) {
+      const authHeader = req.headers.authorization;
+
+      if (authHeader?.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
+    }
+
+    // Token পাওয়া না গেলে
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: "Unauthorized",
       });
     }
 
-    const token = authHeader.split(" ")[1];
+    // Verify JWT
+    const decoded = jwt.verify(
+      token,
+      config.jwt_secret as string
+    ) as IUser;
 
-    const decoded = jwt.verify(token, config.jwt_secret as string);
-
-    req.user = decoded as IUser;
+    // User information request-এর মধ্যে রাখবে
+    req.user = decoded;
 
     next();
-  } catch {
+  } catch (error) {
     return res.status(401).json({
       success: false,
-      message: "Invalid token",
+      message: "Invalid or expired token",
     });
   }
 };
+
 export const authorizeRoles = (...roles: string[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -63,7 +82,13 @@ export const isOwnerOrAdmin = (
 ) => {
   const userId = req.params.id;
 
+  // Admin সব user-এর account modify করতে পারবে
   if (req.user?.role === "admin") {
+    return next();
+  }
+
+  // নিজের account ছাড়া অন্য account modify করতে পারবে না
+  if (req.user?._id?.toString() === userId) {
     return next();
   }
 

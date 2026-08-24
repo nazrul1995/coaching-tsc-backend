@@ -8,6 +8,8 @@ import { StudentRoutes } from './students.routes';
 import { TeacherRoutes } from './teacher.route';
 import { ResultRoutes } from './result.route';
 import { paymentRoutes } from './payment.routes';
+import { examRoutes } from './exam.route';
+import { examResultRoutes } from './examResult.route';
 
 
 const router = express.Router();
@@ -48,6 +50,14 @@ const moduleRoutes = [
   {
     path: "/payments",
     route: paymentRoutes,
+  },
+  {
+    path: "/exams",
+    route: examRoutes,
+  },
+  {
+    path: "/exam-results",
+    route: examResultRoutes,
   }
 ];
 

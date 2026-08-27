@@ -14,6 +14,13 @@ router.get('/', studentControllers.getAllStudents);
 router.get('/', studentControllers.getAllStudents);
 // get single student by email
 router.get('/email/:email', studentControllers.getStudentByemail);
+
+router.get(
+  "/:id/details",
+  verifyToken,
+  authorizeRoles("admin", "teacher","student"),
+  studentControllers.getStudentDetails
+);
 // update student
 router.patch("/:id", studentControllers.updateStudent);
 // delete student

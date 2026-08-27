@@ -204,7 +204,11 @@ const addBulkResults = async (req: Request, res: Response) => {
   try {
     const { examId, results } = req.body;
 
-    if (!examId || !Array.isArray(results) || results.length === 0) {
+    if (
+      !examId ||
+      !Array.isArray(results) ||
+      results.length === 0
+    ) {
       return res.status(400).json({
         success: false,
         message: "examId and results array are required",
@@ -223,7 +227,8 @@ const addBulkResults = async (req: Request, res: Response) => {
     if (exam.status !== "published") {
       return res.status(400).json({
         success: false,
-        message: "Exam must be published before entering results",
+        message:
+          "Exam must be published before entering results",
       });
     }
 
@@ -239,23 +244,12 @@ const addBulkResults = async (req: Request, res: Response) => {
       students.map((student: any) => [
         student._id.toString(),
         student,
-      ])
+      ]),
     );
 
-    const existingResults = await ExamResult.find({
-      exam: examId,
-      student: { $in: studentIds },
-    })
-      .select("student")
-      .lean();
+    let inserted = 0;
+    let updated = 0;
 
-    const existingStudentIds = new Set(
-      existingResults.map((result: any) =>
-        result.student.toString()
-      )
-    );
-
-    const documents: any[] = [];
     const errors: any[] = [];
 
     for (const item of results) {
@@ -266,6 +260,7 @@ const addBulkResults = async (req: Request, res: Response) => {
           studentId: null,
           reason: "studentId is required",
         });
+
         continue;
       }
 
@@ -276,6 +271,7 @@ const addBulkResults = async (req: Request, res: Response) => {
           studentId,
           reason: "Student not found",
         });
+
         continue;
       }
 
@@ -285,21 +281,20 @@ const addBulkResults = async (req: Request, res: Response) => {
           reason:
             "Student is not eligible for this exam",
         });
-        continue;
-      }
 
-      if (existingStudentIds.has(studentId)) {
-        errors.push({
-          studentId,
-          reason: "Result already exists for this student",
-        });
         continue;
       }
 
       const isAbsent = item.isAbsent === true;
 
+      let updateData: any;
+
+      // ==============================================
+      // ABSENT
+      // ==============================================
+
       if (isAbsent) {
-        documents.push({
+        updateData = {
           exam: exam._id,
           student: student._id,
           subjectResults: [],
@@ -310,96 +305,141 @@ const addBulkResults = async (req: Request, res: Response) => {
           isAbsent: true,
           status: "draft",
           remarks: item.remarks,
-        });
-        continue;
+        };
       }
 
-      if (item.marks === undefined || item.marks === null) {
-        errors.push({
-          studentId,
-          reason: "Marks are required",
-        });
-        continue;
+      // ==============================================
+      // PRESENT
+      // ==============================================
+
+      else {
+        if (
+          item.marks === undefined ||
+          item.marks === null ||
+          item.marks === ""
+        ) {
+          errors.push({
+            studentId,
+            reason: "Marks are required",
+          });
+
+          continue;
+        }
+
+        const obtainedMarks = Number(item.marks);
+
+        if (!Number.isFinite(obtainedMarks)) {
+          errors.push({
+            studentId,
+            reason: "Marks must be a valid number",
+          });
+
+          continue;
+        }
+
+        if (obtainedMarks < 0) {
+          errors.push({
+            studentId,
+            reason: "Marks cannot be negative",
+          });
+
+          continue;
+        }
+
+        if (obtainedMarks > exam.totalMarks) {
+          errors.push({
+            studentId,
+            reason:
+              `Marks cannot exceed ${exam.totalMarks}`,
+          });
+
+          continue;
+        }
+
+        const percentage = Number(
+          (
+            (obtainedMarks / exam.totalMarks) *
+            100
+          ).toFixed(2),
+        );
+
+        const grade = calculateGrade(percentage);
+
+        updateData = {
+          exam: exam._id,
+          student: student._id,
+          subjectResults:
+            item.subjectResults || [],
+          marks: obtainedMarks,
+          totalMarks: exam.totalMarks,
+          percentage,
+          grade,
+          isAbsent: false,
+          status: "draft",
+          remarks: item.remarks,
+        };
       }
 
-      const obtainedMarks = Number(item.marks);
+      // ==============================================
+      // CREATE OR UPDATE
+      // ==============================================
 
-      if (!Number.isFinite(obtainedMarks)) {
-        errors.push({
-          studentId,
-          reason: "Marks must be a valid number",
-        });
-        continue;
-      }
-
-      if (obtainedMarks < 0) {
-        errors.push({
-          studentId,
-          reason: "Marks cannot be negative",
-        });
-        continue;
-      }
-
-      if (obtainedMarks > exam.totalMarks) {
-        errors.push({
-          studentId,
-          reason: `Marks cannot exceed ${exam.totalMarks}`,
-        });
-        continue;
-      }
-
-      const percentage = Number(
-        ((obtainedMarks / exam.totalMarks) * 100).toFixed(2)
-      );
-
-      const grade = calculateGrade(percentage);
-
-      documents.push({
+      const existing = await ExamResult.findOne({
         exam: exam._id,
         student: student._id,
-        subjectResults: item.subjectResults || [],
-        marks: obtainedMarks,
-        totalMarks: exam.totalMarks,
-        percentage,
-        grade,
-        isAbsent: false,
-        status: "draft",
-        remarks: item.remarks,
       });
+
+      if (existing) {
+        await ExamResult.updateOne(
+          {
+            _id: existing._id,
+          },
+          {
+            $set: updateData,
+          },
+        );
+
+        updated++;
+      } else {
+        await ExamResult.create(updateData);
+
+        inserted++;
+      }
     }
 
-    if (documents.length === 0) {
+    if (inserted === 0 && updated === 0) {
       return res.status(400).json({
         success: false,
-        message: "No valid results found to insert",
-        inserted: 0,
+        message: "No valid results found",
+        inserted,
+        updated,
         failed: errors.length,
         errors,
       });
     }
 
-    const inserted = await ExamResult.insertMany(documents, {
-      ordered: false,
-    });
-
-    return res.status(201).json({
+    return res.status(200).json({
       success: true,
-      message: "Bulk results added successfully",
-      inserted: inserted.length,
+      message: "Results saved successfully",
+      inserted,
+      updated,
       failed: errors.length,
       errors,
-      data: inserted,
     });
   } catch (error: any) {
-    console.error("Bulk Result Error:", error);
+    console.error(
+      "Bulk Result Error:",
+      error,
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to add bulk results",
+      message: "Failed to save bulk results",
       error: error.message,
     });
   }
 };
+
 
 // ======================================================
 // Get Exam Results

@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import { User } from "../model/user.model";
 import { StudentFee } from "../model/payment.model";
 import mongoose from "mongoose";
+import { ExamResult } from "../model/examResult.model";
 
 // Helper to catch async errors
 const catchAsync = (fn: Function) => {
@@ -259,6 +260,544 @@ export const getStudentByemail = catchAsync(async (req: Request, res: Response) 
     student,
   });
 });
+// ======================================================
+// GET STUDENT DETAILS
+// ======================================================
+
+export const getStudentDetails = catchAsync(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    // ==================================================
+    // 1. STUDENT
+    // ==================================================
+
+    const student = await Student.findById(id).lean();
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+
+    // ==================================================
+    // 2. STUDENT'S EXAM RESULTS
+    // ==================================================
+
+    const results = await ExamResult.find({
+      student: id,
+      status: "published",
+    })
+      .populate(
+        "exam",
+        "title type examDate totalMarks className batch group"
+      )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // ==================================================
+    // 3. ACADEMIC STATISTICS
+    // ==================================================
+
+    const participatedResults = results.filter(
+      (result) => !result.isAbsent
+    );
+
+    const absentResults = results.filter(
+      (result) => result.isAbsent
+    );
+
+    const percentages = participatedResults.map(
+      (result) => result.percentage
+    );
+
+    const averagePercentage =
+      percentages.length > 0
+        ? percentages.reduce(
+            (sum, value) => sum + value,
+            0
+          ) / percentages.length
+        : 0;
+
+    const highestPercentage =
+      percentages.length > 0
+        ? Math.max(...percentages)
+        : 0;
+
+    const lowestPercentage =
+      percentages.length > 0
+        ? Math.min(...percentages)
+        : 0;
+
+    const totalObtainedMarks =
+      participatedResults.reduce(
+        (sum, result) => sum + result.marks,
+        0
+      );
+
+    // Published exam count
+    const weeklyExamCount = results.filter(
+      (result: any) =>
+        result.exam?.type === "weekly"
+    ).length;
+
+    const modelTestCount = results.filter(
+      (result: any) =>
+        result.exam?.type === "model_test"
+    ).length;
+
+    // ==================================================
+    // 4. FEE HISTORY
+    // ==================================================
+
+    const fees = await StudentFee.find({
+      student: id,
+    })
+      .sort({ cycleStartDate: -1 })
+      .lean();
+
+    // ==================================================
+    // 5. FEE STATISTICS
+    // ==================================================
+
+    const totalFeeAmount = fees.reduce(
+      (sum, fee) => sum + fee.amount,
+      0
+    );
+
+    const totalPaidAmount = fees.reduce(
+      (sum, fee) => sum + fee.paidAmount,
+      0
+    );
+
+    const totalOutstanding = Math.max(
+      0,
+      totalFeeAmount - totalPaidAmount
+    );
+
+    const paidCycles = fees.filter(
+      (fee) => fee.status === "paid"
+    ).length;
+
+    const partialCycles = fees.filter(
+      (fee) => fee.status === "partial"
+    ).length;
+
+    const overdueCycles = fees.filter(
+      (fee) => fee.status === "overdue"
+    ).length;
+
+    const unpaidCycles = fees.filter(
+      (fee) => fee.status === "unpaid"
+    ).length;
+
+    // ==================================================
+    // 6. ALL STUDENTS
+    // ==================================================
+    //
+    // 50 জনের ছোট coaching হওয়ায় এই approach যথেষ্ট।
+    //
+    // এখানে সব student নেওয়া হচ্ছে যাতে:
+    //
+    // totalStudents = মোট enrolled students
+    //
+    // ==================================================
+
+    const allStudents = await Student.find({
+      isDeleted: { $ne: true },
+    })
+      .select("_id className batch group")
+      .lean();
+
+    // ==================================================
+    // 7. ALL STUDENTS' ACADEMIC AVERAGE
+    // ==================================================
+
+    const rankingData = await ExamResult.aggregate([
+      {
+        $match: {
+          status: "published",
+          isAbsent: false,
+        },
+      },
+
+      {
+        $group: {
+          _id: "$student",
+
+          averagePercentage: {
+            $avg: "$percentage",
+          },
+
+          totalExams: {
+            $sum: 1,
+          },
+
+          totalObtainedMarks: {
+            $sum: "$marks",
+          },
+        },
+      },
+
+      {
+        $sort: {
+          averagePercentage: -1,
+          totalObtainedMarks: -1,
+        },
+      },
+    ]);
+
+    // ==================================================
+    // 8. RANKING MAP
+    // ==================================================
+
+    const rankingMap = new Map<
+      string,
+      {
+        averagePercentage: number;
+        totalExams: number;
+        totalObtainedMarks: number;
+      }
+    >();
+
+    rankingData.forEach((item) => {
+      rankingMap.set(item._id.toString(), {
+        averagePercentage: item.averagePercentage,
+        totalExams: item.totalExams,
+        totalObtainedMarks: item.totalObtainedMarks,
+      });
+    });
+
+    // ==================================================
+    // 9. RANK CALCULATOR
+    // ==================================================
+
+    const calculateRanking = (
+      students: any[]
+    ) => {
+      const rankedStudents = students
+        .map((student) => {
+          const academic = rankingMap.get(
+            student._id.toString()
+          );
+
+          if (!academic) {
+            return null;
+          }
+
+          return {
+            studentId: student._id.toString(),
+
+            averagePercentage:
+              academic.averagePercentage,
+
+            totalExams: academic.totalExams,
+
+            totalObtainedMarks:
+              academic.totalObtainedMarks,
+          };
+        })
+        .filter(Boolean) as {
+        studentId: string;
+        averagePercentage: number;
+        totalExams: number;
+        totalObtainedMarks: number;
+      }[];
+
+      // Highest average first
+      rankedStudents.sort((a, b) => {
+        if (
+          b.averagePercentage !==
+          a.averagePercentage
+        ) {
+          return (
+            b.averagePercentage -
+            a.averagePercentage
+          );
+        }
+
+        // Same average হলে বেশি obtained marks আগে
+        return (
+          b.totalObtainedMarks -
+          a.totalObtainedMarks
+        );
+      });
+
+      const currentStudent = rankedStudents.find(
+        (item) => item.studentId === id
+      );
+
+      let rank: number | null = null;
+
+      if (currentStudent) {
+        rank =
+          rankedStudents.filter(
+            (item) =>
+              item.averagePercentage >
+              currentStudent.averagePercentage
+          ).length + 1;
+      }
+
+      return {
+        rank,
+
+        totalStudents: students.length,
+
+        rankedStudents:
+          rankedStudents.length,
+
+        averagePercentage: currentStudent
+          ? Number(
+              currentStudent.averagePercentage.toFixed(
+                2
+              )
+            )
+          : 0,
+      };
+    };
+
+    // ==================================================
+    // 10. BATCH STUDENTS
+    // ==================================================
+
+    const batchStudents = allStudents.filter(
+      (item) =>
+        item.batch === student.batch
+    );
+
+    const batchRanking =
+      calculateRanking(batchStudents);
+
+    // ==================================================
+    // 11. CLASS STUDENTS
+    // ==================================================
+
+    const classStudents = allStudents.filter(
+      (item) =>
+        item.className === student.className
+    );
+
+    const classRanking =
+      calculateRanking(classStudents);
+
+    // ==================================================
+    // 12. EXACT GROUP / BATCH / CLASS RANK
+    // ==================================================
+    //
+    // যদি group থাকে, তাহলে exact academic group-ও
+    // আলাদা ranking হিসেবে পাওয়া যাবে।
+    //
+    // Example:
+    //
+    // Class 9
+    // SSC-2028
+    // Science
+    //
+    // ==================================================
+
+    const groupStudents = allStudents.filter(
+      (item) =>
+        item.className === student.className &&
+        item.batch === student.batch &&
+        item.group === student.group
+    );
+
+    const groupRanking =
+      calculateRanking(groupStudents);
+
+    // ==================================================
+    // 13. WHOLE COACHING RANK
+    // ==================================================
+
+    const coachingRanking =
+      calculateRanking(allStudents);
+
+    // ==================================================
+    // 14. STUDENT'S OWN ACADEMIC RANKING DATA
+    // ==================================================
+
+    const ownRankingData =
+      rankingMap.get(id);
+
+    // ==================================================
+    // 15. FINAL RESPONSE
+    // ==================================================
+
+    return res.status(200).json({
+      success: true,
+
+      data: {
+        // ==================================================
+        // STUDENT
+        // ==================================================
+
+        student: {
+          _id: student._id,
+          name: student.name,
+          email: student.email,
+          guradianName: student.guradianName,
+          phone: student.phone,
+          institution: student.institution,
+          className: student.className,
+          batch: student.batch,
+          group: student.group,
+          admissionDate: student.admissionDate,
+          photo: student.photo,
+          monthlyFee: student.monthlyFee,
+        },
+
+        // ==================================================
+        // ACADEMIC SUMMARY
+        // ==================================================
+
+        academicSummary: {
+          totalExams: results.length,
+
+          participated:
+            participatedResults.length,
+
+          absent: absentResults.length,
+
+          totalObtainedMarks,
+
+          averagePercentage: Number(
+            averagePercentage.toFixed(2)
+          ),
+
+          highestPercentage: Number(
+            highestPercentage.toFixed(2)
+          ),
+
+          lowestPercentage: Number(
+            lowestPercentage.toFixed(2)
+          ),
+
+          weeklyExamCount,
+
+          modelTestCount,
+        },
+
+        // ==================================================
+        // RANKING
+        // ==================================================
+
+        ranking: {
+          // ----------------------------------------------
+          // Exact academic group
+          // Class + Batch + Group
+          // ----------------------------------------------
+
+          group: {
+            rank: groupRanking.rank,
+
+            totalStudents:
+              groupRanking.totalStudents,
+
+            rankedStudents:
+              groupRanking.rankedStudents,
+
+            averagePercentage:
+              groupRanking.averagePercentage,
+          },
+
+          // ----------------------------------------------
+          // Batch
+          // ----------------------------------------------
+
+          batch: {
+            rank: batchRanking.rank,
+
+            totalStudents:
+              batchRanking.totalStudents,
+
+            rankedStudents:
+              batchRanking.rankedStudents,
+
+            averagePercentage:
+              batchRanking.averagePercentage,
+          },
+
+          // ----------------------------------------------
+          // Class
+          // ----------------------------------------------
+
+          class: {
+            rank: classRanking.rank,
+
+            totalStudents:
+              classRanking.totalStudents,
+
+            rankedStudents:
+              classRanking.rankedStudents,
+
+            averagePercentage:
+              classRanking.averagePercentage,
+          },
+
+          // ----------------------------------------------
+          // Whole Coaching
+          // ----------------------------------------------
+
+          coaching: {
+            rank: coachingRanking.rank,
+
+            totalStudents:
+              coachingRanking.totalStudents,
+
+            rankedStudents:
+              coachingRanking.rankedStudents,
+
+            averagePercentage:
+              coachingRanking.averagePercentage,
+          },
+
+          // ----------------------------------------------
+          // Student has result or not
+          // ----------------------------------------------
+
+          hasRanking:
+            !!ownRankingData,
+        },
+
+        // ==================================================
+        // FEE SUMMARY
+        // ==================================================
+
+        feeSummary: {
+          monthlyFee:
+            student.monthlyFee || 0,
+
+          totalFeeAmount,
+
+          totalPaidAmount,
+
+          totalOutstanding,
+
+          paidCycles,
+
+          partialCycles,
+
+          overdueCycles,
+
+          unpaidCycles,
+        },
+
+        // ==================================================
+        // EXAM RESULTS
+        // ==================================================
+
+        results,
+
+        // ==================================================
+        // FEE HISTORY
+        // ==================================================
+
+        feeHistory: fees,
+      },
+    });
+  }
+);
 
 // UPDATE STUDENT
 export const updateStudent = catchAsync(async (req: Request, res: Response) => {
@@ -303,7 +842,7 @@ export const deleteStudent = catchAsync(async (req: Request, res: Response) => {
     });
   }
 
-  await User.findOneAndUpdate(
+  await User.de(
     { email: student.email },
     { role: "user" },
     { returnDocument: "after" }
@@ -320,8 +859,8 @@ export const studentControllers = {
   createStudent,
   getAllStudents,
   getStudentByemail,
+  getStudentDetails,
   updateStudent,
   deleteStudent,
   createStudentByAdmin,
-
 };

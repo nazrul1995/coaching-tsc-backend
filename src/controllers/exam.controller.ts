@@ -9,7 +9,6 @@ import { Student } from "../model/student.model";
 const createExam = async (req: Request, res: Response) => {
   try {
     const {
-      title,
       type,
       subject,
       totalMarks,
@@ -20,8 +19,11 @@ const createExam = async (req: Request, res: Response) => {
       description,
     } = req.body;
 
+    // ==================================================
+    // Required fields validation
+    // ==================================================
+
     if (
-      !title ||
       !type ||
       !subject ||
       totalMarks === undefined ||
@@ -31,38 +33,225 @@ const createExam = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         message:
-          "title, type, subject, totalMarks, examDate and className are required",
+          "type, subject, totalMarks, examDate and className are required",
       });
     }
+
+    // ==================================================
+    // Validate Exam Type
+    // ==================================================
+
+    const allowedExamTypes = [
+      "weekly",
+      "model_test",
+    ];
+
+    if (!allowedExamTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid exam type. Allowed types are weekly and model_test",
+      });
+    }
+
+    // ==================================================
+    // Validate Total Marks
+    // ==================================================
 
     const parsedTotalMarks = Number(totalMarks);
 
-    if (!Number.isFinite(parsedTotalMarks) || parsedTotalMarks <= 0) {
+    if (
+      !Number.isFinite(parsedTotalMarks) ||
+      parsedTotalMarks <= 0
+    ) {
       return res.status(400).json({
         success: false,
-        message: "totalMarks must be a valid positive number",
+        message:
+          "totalMarks must be a valid positive number",
       });
     }
 
-    const exam = await Exam.create({
-      title,
+    // ==================================================
+    // Normalize Class
+    //
+    // 10 / "10" → "10"
+    // ==================================================
+
+    const normalizedClassName = String(className).trim();
+
+    if (!normalizedClassName) {
+      return res.status(400).json({
+        success: false,
+        message: "className is required",
+      });
+    }
+
+    // ==================================================
+    // Normalize Batch
+    //
+    // SSC-2028 / "SSC-2028"
+    // ==================================================
+
+    const normalizedBatch = batch
+      ? String(batch).trim()
+      : undefined;
+
+    // ==================================================
+    // Normalize Group
+    // ==================================================
+
+    const normalizedGroup = group
+      ? String(group).trim()
+      : undefined;
+
+    // ==================================================
+    // Title Prefix
+    // ==================================================
+
+    const titlePrefix =
+      type === "weekly"
+        ? "Weekly Tutorial"
+        : "Model Test";
+
+    // ==================================================
+    // Find exams belonging to the SAME SERIES
+    //
+    // Same:
+    // type
+    // className
+    // batch
+    // group
+    //
+    // Example:
+    //
+    // weekly
+    // class 10
+    // SSC-2028
+    // science
+    //
+    // → Weekly Tutorial-1
+    // → Weekly Tutorial-2
+    // ==================================================
+
+    const seriesFilter: Record<string, any> = {
       type,
+      className: normalizedClassName,
+    };
+
+    // Batch থাকলে same batch match করবে
+    if (normalizedBatch) {
+      seriesFilter.batch = normalizedBatch;
+    } else {
+      seriesFilter.batch = {
+        $exists: false,
+      };
+    }
+
+    // Group থাকলে same group match করবে
+    if (normalizedGroup) {
+      seriesFilter.group = normalizedGroup;
+    } else {
+      seriesFilter.group = {
+        $exists: false,
+      };
+    }
+
+    const existingExams = await Exam.find(seriesFilter)
+      .select("title")
+      .lean();
+
+    // ==================================================
+    // Find highest serial number
+    // ==================================================
+
+    let maxNumber = 0;
+
+    const escapedPrefix = titlePrefix.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    );
+
+    const titleRegex = new RegExp(
+      `^${escapedPrefix}-([0-9]+)$`,
+      "i",
+    );
+
+    for (const existingExam of existingExams) {
+      if (!existingExam.title) {
+        continue;
+      }
+
+      const match =
+        existingExam.title.match(titleRegex);
+
+      if (!match) {
+        continue;
+      }
+
+      const number = Number(match[1]);
+
+      if (
+        Number.isFinite(number) &&
+        number > maxNumber
+      ) {
+        maxNumber = number;
+      }
+    }
+
+    // ==================================================
+    // Generate Title
+    // ==================================================
+
+    const nextNumber = maxNumber + 1;
+
+    const generatedTitle =
+      `${titlePrefix}-${nextNumber}`;
+
+    // ==================================================
+    // Create Exam
+    // ==================================================
+
+    const exam = await Exam.create({
+      title: generatedTitle,
+
+      type,
+
       subject,
+
       totalMarks: parsedTotalMarks,
+
       examDate,
-      className,
-      batch,
-      group,
-      description,
+
+      className: normalizedClassName,
+
+      batch: normalizedBatch,
+
+      group: normalizedGroup,
+
+      description: description
+        ? String(description).trim()
+        : undefined,
+
+      // New exam always starts as draft
       status: "draft",
     });
+
+    // ==================================================
+    // Response
+    // ==================================================
 
     return res.status(201).json({
       success: true,
       message: "Exam created successfully",
+
       data: exam,
     });
   } catch (error: any) {
+    console.error(
+      "Create Exam Error:",
+      error,
+    );
+
     return res.status(500).json({
       success: false,
       message: "Failed to create exam",
@@ -75,7 +264,10 @@ const createExam = async (req: Request, res: Response) => {
 // Publish Exam
 // ======================================================
 
-const publishExam = async (req: Request, res: Response) => {
+const publishExam = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { examId } = req.params;
 
@@ -96,6 +288,7 @@ const publishExam = async (req: Request, res: Response) => {
     }
 
     exam.status = "published";
+
     await exam.save();
 
     return res.status(200).json({
@@ -104,6 +297,11 @@ const publishExam = async (req: Request, res: Response) => {
       data: exam,
     });
   } catch (error: any) {
+    console.error(
+      "Publish Exam Error:",
+      error,
+    );
+
     return res.status(500).json({
       success: false,
       message: "Failed to publish exam",
@@ -111,6 +309,7 @@ const publishExam = async (req: Request, res: Response) => {
     });
   }
 };
+
 
 // ======================================================
 // Get Eligible Students For An Exam

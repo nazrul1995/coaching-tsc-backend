@@ -10,6 +10,6 @@ export interface TStudent {
   institution: string;
   batch?: string;
   group?: Group;
-  photo: string;
-  monthlyFee?: number;
+  photo?: string;
+  monthlyFee: number;
 }

@@ -10,17 +10,10 @@ router.post('/admin/add', verifyToken,authorizeRoles("admin"), studentController
 router.post('/', studentControllers.createStudent);
 // get all students
 router.get('/', studentControllers.getAllStudents);
-// get all students
-router.get('/', studentControllers.getAllStudents);
 // get single student by email
 router.get('/email/:email', studentControllers.getStudentByemail);
 
-router.get(
-  "/:id/details",
-  verifyToken,
-  authorizeRoles("admin", "teacher","student"),
-  studentControllers.getStudentDetails
-);
+router.get("/details", verifyToken, authorizeRoles("admin", "teacher","student"), studentControllers.getStudentDetails);
 // update student
 router.patch("/:id", studentControllers.updateStudent);
 // delete student

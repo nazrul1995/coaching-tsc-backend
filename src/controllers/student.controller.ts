@@ -266,13 +266,29 @@ export const getStudentByemail = catchAsync(async (req: Request, res: Response) 
 
 export const getStudentDetails = catchAsync(
   async (req: Request, res: Response) => {
-    const { id } = req.params;
+    // ==================================================
+    // 0. GET EMAIL FROM QUERY PARAMETER
+    // ==================================================
+
+    const { email } = req.query;
+
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const studentEmail = email.trim().toLowerCase();
 
     // ==================================================
     // 1. STUDENT
     // ==================================================
 
-    const student = await Student.findById(id).lean();
+    const student = await Student.findOne({
+      email: studentEmail,
+      isDeleted: { $ne: true },
+    }).lean();
 
     if (!student) {
       return res.status(404).json({
@@ -281,12 +297,15 @@ export const getStudentDetails = catchAsync(
       });
     }
 
+    // Student's actual MongoDB ObjectId
+    const studentId = student._id;
+
     // ==================================================
     // 2. STUDENT'S EXAM RESULTS
     // ==================================================
 
     const results = await ExamResult.find({
-      student: id,
+      student: studentId,
       status: "published",
     })
       .populate(
@@ -336,12 +355,13 @@ export const getStudentDetails = catchAsync(
         0
       );
 
-    // Published exam count
+    // Weekly exam count
     const weeklyExamCount = results.filter(
       (result: any) =>
         result.exam?.type === "weekly"
     ).length;
 
+    // Model test count
     const modelTestCount = results.filter(
       (result: any) =>
         result.exam?.type === "model_test"
@@ -352,7 +372,7 @@ export const getStudentDetails = catchAsync(
     // ==================================================
 
     const fees = await StudentFee.find({
-      student: id,
+      student: studentId,
     })
       .sort({ cycleStartDate: -1 })
       .lean();
@@ -394,14 +414,6 @@ export const getStudentDetails = catchAsync(
 
     // ==================================================
     // 6. ALL STUDENTS
-    // ==================================================
-    //
-    // 50 জনের ছোট coaching হওয়ায় এই approach যথেষ্ট।
-    //
-    // এখানে সব student নেওয়া হচ্ছে যাতে:
-    //
-    // totalStudents = মোট enrolled students
-    //
     // ==================================================
 
     const allStudents = await Student.find({
@@ -463,9 +475,14 @@ export const getStudentDetails = catchAsync(
 
     rankingData.forEach((item) => {
       rankingMap.set(item._id.toString(), {
-        averagePercentage: item.averagePercentage,
-        totalExams: item.totalExams,
-        totalObtainedMarks: item.totalObtainedMarks,
+        averagePercentage:
+          item.averagePercentage,
+
+        totalExams:
+          item.totalExams,
+
+        totalObtainedMarks:
+          item.totalObtainedMarks,
       });
     });
 
@@ -487,12 +504,14 @@ export const getStudentDetails = catchAsync(
           }
 
           return {
-            studentId: student._id.toString(),
+            studentId:
+              student._id.toString(),
 
             averagePercentage:
               academic.averagePercentage,
 
-            totalExams: academic.totalExams,
+            totalExams:
+              academic.totalExams,
 
             totalObtainedMarks:
               academic.totalObtainedMarks,
@@ -524,9 +543,13 @@ export const getStudentDetails = catchAsync(
         );
       });
 
-      const currentStudent = rankedStudents.find(
-        (item) => item.studentId === id
-      );
+      // Find current student
+      const currentStudent =
+        rankedStudents.find(
+          (item) =>
+            item.studentId ===
+            studentId.toString()
+        );
 
       let rank: number | null = null;
 
@@ -542,18 +565,21 @@ export const getStudentDetails = catchAsync(
       return {
         rank,
 
+        // Total enrolled students
         totalStudents: students.length,
 
+        // Students who have published results
         rankedStudents:
           rankedStudents.length,
 
-        averagePercentage: currentStudent
-          ? Number(
-              currentStudent.averagePercentage.toFixed(
-                2
+        averagePercentage:
+          currentStudent
+            ? Number(
+                currentStudent.averagePercentage.toFixed(
+                  2
+                )
               )
-            )
-          : 0,
+            : 0,
       };
     };
 
@@ -584,21 +610,11 @@ export const getStudentDetails = catchAsync(
     // ==================================================
     // 12. EXACT GROUP / BATCH / CLASS RANK
     // ==================================================
-    //
-    // যদি group থাকে, তাহলে exact academic group-ও
-    // আলাদা ranking হিসেবে পাওয়া যাবে।
-    //
-    // Example:
-    //
-    // Class 9
-    // SSC-2028
-    // Science
-    //
-    // ==================================================
 
     const groupStudents = allStudents.filter(
       (item) =>
-        item.className === student.className &&
+        item.className ===
+          student.className &&
         item.batch === student.batch &&
         item.group === student.group
     );
@@ -618,7 +634,7 @@ export const getStudentDetails = catchAsync(
     // ==================================================
 
     const ownRankingData =
-      rankingMap.get(id);
+      rankingMap.get(studentId.toString());
 
     // ==================================================
     // 15. FINAL RESPONSE
@@ -634,17 +650,33 @@ export const getStudentDetails = catchAsync(
 
         student: {
           _id: student._id,
+
           name: student.name,
+
           email: student.email,
-          guradianName: student.guradianName,
+
+          guradianName:
+            student.guradianName,
+
           phone: student.phone,
-          institution: student.institution,
-          className: student.className,
+
+          institution:
+            student.institution,
+
+          className:
+            student.className,
+
           batch: student.batch,
+
           group: student.group,
-          admissionDate: student.admissionDate,
+
+          admissionDate:
+            student.admissionDate,
+
           photo: student.photo,
-          monthlyFee: student.monthlyFee,
+
+          monthlyFee:
+            student.monthlyFee,
         },
 
         // ==================================================
@@ -652,26 +684,31 @@ export const getStudentDetails = catchAsync(
         // ==================================================
 
         academicSummary: {
-          totalExams: results.length,
+          totalExams:
+            results.length,
 
           participated:
             participatedResults.length,
 
-          absent: absentResults.length,
+          absent:
+            absentResults.length,
 
           totalObtainedMarks,
 
-          averagePercentage: Number(
-            averagePercentage.toFixed(2)
-          ),
+          averagePercentage:
+            Number(
+              averagePercentage.toFixed(2)
+            ),
 
-          highestPercentage: Number(
-            highestPercentage.toFixed(2)
-          ),
+          highestPercentage:
+            Number(
+              highestPercentage.toFixed(2)
+            ),
 
-          lowestPercentage: Number(
-            lowestPercentage.toFixed(2)
-          ),
+          lowestPercentage:
+            Number(
+              lowestPercentage.toFixed(2)
+            ),
 
           weeklyExamCount,
 
@@ -684,12 +721,13 @@ export const getStudentDetails = catchAsync(
 
         ranking: {
           // ----------------------------------------------
-          // Exact academic group
+          // Exact Group
           // Class + Batch + Group
           // ----------------------------------------------
 
           group: {
-            rank: groupRanking.rank,
+            rank:
+              groupRanking.rank,
 
             totalStudents:
               groupRanking.totalStudents,
@@ -706,7 +744,8 @@ export const getStudentDetails = catchAsync(
           // ----------------------------------------------
 
           batch: {
-            rank: batchRanking.rank,
+            rank:
+              batchRanking.rank,
 
             totalStudents:
               batchRanking.totalStudents,
@@ -723,7 +762,8 @@ export const getStudentDetails = catchAsync(
           // ----------------------------------------------
 
           class: {
-            rank: classRanking.rank,
+            rank:
+              classRanking.rank,
 
             totalStudents:
               classRanking.totalStudents,
@@ -740,7 +780,8 @@ export const getStudentDetails = catchAsync(
           // ----------------------------------------------
 
           coaching: {
-            rank: coachingRanking.rank,
+            rank:
+              coachingRanking.rank,
 
             totalStudents:
               coachingRanking.totalStudents,
@@ -799,6 +840,7 @@ export const getStudentDetails = catchAsync(
   }
 );
 
+
 // UPDATE STUDENT
 export const updateStudent = catchAsync(async (req: Request, res: Response) => {
   const { name, email, phone, className, batch, group, photoUrl } = req.body;
@@ -842,10 +884,8 @@ export const deleteStudent = catchAsync(async (req: Request, res: Response) => {
     });
   }
 
-  await User.de(
-    { email: student.email },
-    { role: "user" },
-    { returnDocument: "after" }
+  await User.deleteOne(
+    { email: student.email }
   );
 
   res.status(200).json({

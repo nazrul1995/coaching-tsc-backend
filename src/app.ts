@@ -1,55 +1,46 @@
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '8.8.4.4']);
+// backend/src/app.ts
 import cors from "cors";
 import express, { Application, Request, Response } from "express";
 import cookieParser from "cookie-parser";
-
 import router from "./routes";
 
 const app: Application = express();
 
-// ===============================
-// Parsers / Middleware
-// ===============================
-
 app.use(express.json());
-
 app.use(express.urlencoded({ extended: true }));
-
-// Parse cookies
 app.use(cookieParser());
 
-// ===============================
-// CORS
-// ===============================
+// CORS dynamic configuration for Vercel
+const allowedOrigins = [
+  "http://localhost:3000",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS policy violation"));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// ===============================
-// Application Routes
-// ===============================
-
 app.use("/api/v1", router);
-
-// ===============================
-// Testing Route
-// ===============================
 
 app.get("/", (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
-    message: "Event Management Server is running!",
+    message: "Server is running smoothly!",
   });
 });
-
-// ===============================
-// Not Found Route
-// ===============================
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({

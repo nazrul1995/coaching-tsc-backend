@@ -7,23 +7,34 @@ exports.isOwnerOrAdmin = exports.authorizeRoles = exports.verifyToken = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const config_1 = __importDefault(require("../config"));
 const verifyToken = (req, res, next) => {
+    var _a;
     try {
-        const authHeader = req.headers.authorization;
-        if (!(authHeader === null || authHeader === void 0 ? void 0 : authHeader.startsWith("Bearer "))) {
+        // 1. প্রথমে HttpOnly cookie থেকে token নেবে
+        let token = (_a = req.cookies) === null || _a === void 0 ? void 0 : _a.token;
+        // 2. Cookie-তে না থাকলে Authorization header থেকে নেবে
+        if (!token) {
+            const authHeader = req.headers.authorization;
+            if (authHeader === null || authHeader === void 0 ? void 0 : authHeader.startsWith("Bearer ")) {
+                token = authHeader.split(" ")[1];
+            }
+        }
+        // Token পাওয়া না গেলে
+        if (!token) {
             return res.status(401).json({
                 success: false,
                 message: "Unauthorized",
             });
         }
-        const token = authHeader.split(" ")[1];
+        // Verify JWT
         const decoded = jsonwebtoken_1.default.verify(token, config_1.default.jwt_secret);
+        // User information request-এর মধ্যে রাখবে
         req.user = decoded;
         next();
     }
-    catch (_a) {
+    catch (error) {
         return res.status(401).json({
             success: false,
-            message: "Invalid token",
+            message: "Invalid or expired token",
         });
     }
 };
@@ -47,9 +58,14 @@ const authorizeRoles = (...roles) => {
 };
 exports.authorizeRoles = authorizeRoles;
 const isOwnerOrAdmin = (req, res, next) => {
-    var _a;
+    var _a, _b, _c;
     const userId = req.params.id;
+    // Admin সব user-এর account modify করতে পারবে
     if (((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) === "admin") {
+        return next();
+    }
+    // নিজের account ছাড়া অন্য account modify করতে পারবে না
+    if (((_c = (_b = req.user) === null || _b === void 0 ? void 0 : _b._id) === null || _c === void 0 ? void 0 : _c.toString()) === userId) {
         return next();
     }
     return res.status(403).json({

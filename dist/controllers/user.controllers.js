@@ -103,7 +103,18 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             });
         }
         // Generate token
-        const token = jsonwebtoken_1.default.sign({ email: user.email, role: user.role }, config_1.default.jwt_secret, { expiresIn: config_1.default.jwt_expires_in });
+        const token = jsonwebtoken_1.default.sign({
+            email: user.email,
+            role: user.role,
+        }, config_1.default.jwt_secret, {
+            expiresIn: config_1.default.jwt_expires_in,
+        });
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
         // Omit password from response
         const userResponse = user.toObject();
         delete userResponse.password;

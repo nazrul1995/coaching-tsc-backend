@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const event_route_1 = require("./event.route");
-// import { AiRoutes } from './ai.routes';
 const user_routes_1 = require("./user.routes");
 const ai_routes_1 = require("./ai.routes");
 const course_route_1 = require("./course.route");
@@ -13,6 +12,9 @@ const enroll_routes_1 = require("./enroll.routes");
 const students_routes_1 = require("./students.routes");
 const teacher_route_1 = require("./teacher.route");
 const result_route_1 = require("./result.route");
+const payment_routes_1 = require("./payment.routes");
+const exam_route_1 = require("./exam.route");
+const examResult_route_1 = require("./examResult.route");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -46,6 +48,18 @@ const moduleRoutes = [
     {
         path: "/results",
         route: result_route_1.ResultRoutes,
+    },
+    {
+        path: "/payments",
+        route: payment_routes_1.paymentRoutes,
+    },
+    {
+        path: "/exams",
+        route: exam_route_1.examRoutes,
+    },
+    {
+        path: "/exam-results",
+        route: examResult_route_1.examResultRoutes,
     }
 ];
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

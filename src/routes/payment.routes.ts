@@ -20,10 +20,15 @@ router.get(
   authorizeRoles("admin"),
   StudentFeeControllers.getAllFees
 );
+router.get(
+  "/all",
+  authorizeRoles("admin"),
+  StudentFeeControllers.getAllPayments
+);
 
 // Get payment history & total outstanding balance for a specific student
 router.get(
-  "/student/:studentId",
+  "/student/:userId",
   authorizeRoles("admin", "student"),
   StudentFeeControllers.getStudentFeeHistory
 );
@@ -42,4 +47,10 @@ router.get(
   StudentFeeControllers.getPaymentSummary
 );
 
+  // generateStudentCycles,
+  // getAllFees,
+  // getStudentFeeHistory,
+  // collectPayment,
+  // getPaymentSummary,
+  // syncStudentFees,
 export const paymentRoutes = router;

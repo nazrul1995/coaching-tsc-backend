@@ -3,6 +3,7 @@ import { TStudent } from '../types/student.interface';
 
 const studentSchema = new Schema<TStudent>({
       name: { type: String, required: true },
+      userId: { type: String},
       email: { type: String, required: true, unique: true },
       guradianName: { type: String, required: true },
       phone: { type: String, required: true },

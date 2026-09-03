@@ -3,6 +3,7 @@ export type Group = "science" | "commerce" | "arts" | "general";
 export interface TStudent {
   name: string;
   email: string;
+  userId:string;
   guradianName: string;
   phone: string;
   className: string;

@@ -111,12 +111,13 @@ export const createStudentByAdmin = catchAsync(
         ],
         { session }
       );
-
+      console.log("New User", newUser)
       // Create Student
       const [newStudent] = await Student.create(
         [
           {
             name,
+            userId: newUser._id,
             email,
             phone,
             className,
@@ -131,7 +132,7 @@ export const createStudentByAdmin = catchAsync(
         ],
         { session }
       );
-
+      console.log(newStudent)
       // ==========================
       // 4. Generate First Cycle Fee Automatically
       // ==========================

@@ -63,7 +63,7 @@ export const getAllPayments = async (req: Request, res: Response) => {
   try {
     const today = new Date();
 
-    // 1. Mark unpaid cycles as overdue if due date has passed
+    // ১. নির্ধারিত তারিখ পেরিয়ে যাওয়া অবিক্রীত/অনাদায়ী সাইকেলগুলোকে Overdue মার্ক করা
     await StudentFee.updateMany(
       {
         dueDate: { $lt: today },
@@ -72,25 +72,64 @@ export const getAllPayments = async (req: Request, res: Response) => {
       { $set: { status: "overdue" } }
     );
 
-    // 2. Fetch all cycles with populated student info
-    const payments = await StudentFee.find()
-      .populate({
-        path: "student",
-        select: "name roll email phone",
-      })
-      .sort({ cycleStartDate: -1 })
-      .lean();
-
-    // 3. Map result so studentId maps cleanly to populated student
-    const formattedPayments = payments.map((fee) => ({
-      ...fee,
-      studentId: fee.student, // Mapping for Next.js frontend support
-    }));
+    // ২. StudentFee সংগ্রহ থেকে প্রতি স্টুডেন্ট অনুযায়ী Aggregation চালান
+    const summaryData = await StudentFee.aggregate([
+      {
+        $group: {
+          _id: "$student",
+          totalAmount: { $sum: "$amount" },
+          totalPaid: { $sum: "$paidAmount" },
+          totalCycles: { $sum: 1 },
+          overdueCycles: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "overdue"] }, 1, 0],
+            },
+          },
+          lastPaymentDate: { $max: "$paymentDate" },
+        },
+      },
+      {
+        $lookup: {
+          from: "students", // নিশ্চিত করুন Mongoose এ Student Collection নাম 'students'
+          localField: "_id",
+          foreignField: "_id",
+          as: "studentInfo",
+        },
+      },
+      {
+        $unwind: "$studentInfo",
+      },
+      {
+        $project: {
+          _id: 0,
+          studentId: "$studentInfo._id",
+          student: {
+            _id: "$studentInfo._id",
+            name: "$studentInfo.name",
+            userId: "$studentInfo.userId",
+            admissionDate: "$studentInfo.admissionDate",
+            email: "$studentInfo.email",
+            phone: "$studentInfo.phone",
+            className: "$studentInfo.className",
+            monthlyFee: "$studentInfo.monthlyFee",
+          },
+          totalAmount: 1,
+          totalPaid: 1,
+          totalOutstanding: { $subtract: ["$totalAmount", "$totalPaid"] },
+          totalCycles: 1,
+          overdueCycles: 1,
+          lastPaymentDate: 1,
+        },
+      },
+      {
+        $sort: { "student.admissionDate": 1 }, // প্রয়োজন অনুযায়ী সর্ট করুন
+      },
+    ]);
 
     return res.status(200).json({
       success: true,
-      count: formattedPayments.length,
-      data: formattedPayments,
+      count: summaryData.length,
+      data: summaryData,
     });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message });
@@ -127,14 +166,14 @@ const getAllFees = async (req: Request, res: Response) => {
 // Retrieve individual student ledger and balance summary
 const getStudentFeeHistory = async (req: Request, res: Response) => {
   try {
-    const { studentId } = req.params;
+    const { userId } = req.params;
 
-    const student = await Student.findById(studentId);
+    const student = await Student.findOne({ userId });
     if (!student) {
       return res.status(404).json({ success: false, message: "Student not found" });
     }
 
-    const fees = await StudentFee.find({ student: studentId }).sort({ cycleStartDate: -1 });
+    const fees = await StudentFee.find({ student: student._id }).sort({ cycleStartDate: -1 });
 
     const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
     const totalPaid = fees.reduce((sum, f) => sum + f.paidAmount, 0);
@@ -149,6 +188,7 @@ const getStudentFeeHistory = async (req: Request, res: Response) => {
       success: true,
       student: {
         id: student._id,
+        userId: student?.userId,
         name: student.name,
         admissionDate: student.admissionDate,
         monthlyFee: student.monthlyFee,
@@ -362,4 +402,5 @@ export const StudentFeeControllers = {
   collectPayment,
   getPaymentSummary,
   syncStudentFees,
+  getAllPayments,
 };

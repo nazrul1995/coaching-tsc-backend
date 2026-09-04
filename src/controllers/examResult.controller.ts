@@ -203,7 +203,6 @@ const createResult = async (req: Request, res: Response) => {
 const addBulkResults = async (req: Request, res: Response) => {
   try {
     const { examId, results } = req.body;
-
     if (
       !examId ||
       !Array.isArray(results) ||

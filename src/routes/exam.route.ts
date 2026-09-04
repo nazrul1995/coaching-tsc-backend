@@ -8,7 +8,13 @@ import { examResultControllers } from "../controllers/examResult.controller";
 import { ExamControllers } from "../controllers/exam.controller";
 
 const router = express.Router();
+// ======================================================
+// OVERALL COACHING LEADERBOARD
+// ======================================================
 
+router.get( "/leaderboard/overall",
+  examResultControllers.getOverallLeaderboard
+);
 router.use(verifyToken);
 
 // ======================================================
@@ -30,7 +36,17 @@ router.get(
   "/:examId",
   ExamControllers.getExam
 );
+// Update existing exam
+router.put(
+  "/:examId",
+  ExamControllers.updateExam
+);
 
+// Delete exam
+router.delete(
+  "/:examId",
+  ExamControllers.deleteExam
+);
 router.patch(
   "/:examId/publish",
   authorizeRoles("admin", "teacher"),
@@ -102,13 +118,6 @@ router.get(
   examResultControllers.getStudentPerformance
 );
 
-// ======================================================
-// OVERALL COACHING LEADERBOARD
-// ======================================================
 
-router.get(
-  "/leaderboard/overall",
-  examResultControllers.getOverallLeaderboard
-);
 
 export const examRoutes = router;

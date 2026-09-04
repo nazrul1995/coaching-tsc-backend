@@ -8,6 +8,10 @@ const express_1 = __importDefault(require("express"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const examResult_controller_1 = require("../controllers/examResult.controller");
 const router = express_1.default.Router();
+// ======================================================
+// OVERALL COACHING LEADERBOARD
+// ======================================================
+router.get("/leaderboard/overall", examResult_controller_1.examResultControllers.getOverallLeaderboard);
 router.use(auth_middleware_1.verifyToken);
 // Admin result entry
 router.post("/results", (0, auth_middleware_1.authorizeRoles)("admin", "teacher"), examResult_controller_1.examResultControllers.createResult);

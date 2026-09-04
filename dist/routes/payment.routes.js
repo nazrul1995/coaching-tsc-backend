@@ -14,10 +14,17 @@ router.use(auth_middleware_1.verifyToken);
 router.post("/sync-fees", (0, auth_middleware_1.authorizeRoles)("admin"), payment_controller_1.StudentFeeControllers.syncStudentFees);
 // Get all student fees (filterable by status, date range)
 router.get("/", (0, auth_middleware_1.authorizeRoles)("admin"), payment_controller_1.StudentFeeControllers.getAllFees);
+router.get("/all", (0, auth_middleware_1.authorizeRoles)("admin"), payment_controller_1.StudentFeeControllers.getAllPayments);
 // Get payment history & total outstanding balance for a specific student
-router.get("/student/:studentId", (0, auth_middleware_1.authorizeRoles)("admin", "student"), payment_controller_1.StudentFeeControllers.getStudentFeeHistory);
+router.get("/student/:userId", (0, auth_middleware_1.authorizeRoles)("admin", "student"), payment_controller_1.StudentFeeControllers.getStudentFeeHistory);
 // Collect payment and apply FIFO distribution across due cycles
 router.post("/pay", (0, auth_middleware_1.authorizeRoles)("admin"), payment_controller_1.StudentFeeControllers.collectPayment);
 // Get system financial summary
 router.get("/summary", (0, auth_middleware_1.authorizeRoles)("admin"), payment_controller_1.StudentFeeControllers.getPaymentSummary);
+// generateStudentCycles,
+// getAllFees,
+// getStudentFeeHistory,
+// collectPayment,
+// getPaymentSummary,
+// syncStudentFees,
 exports.paymentRoutes = router;

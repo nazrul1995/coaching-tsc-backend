@@ -92,10 +92,12 @@ exports.createStudentByAdmin = catchAsync((req, res) => __awaiter(void 0, void 0
                 image: photo,
             },
         ], { session });
+        console.log("New User", newUser);
         // Create Student
         const [newStudent] = yield student_model_1.Student.create([
             {
                 name,
+                userId: newUser._id,
                 email,
                 phone,
                 className,
@@ -108,6 +110,7 @@ exports.createStudentByAdmin = catchAsync((req, res) => __awaiter(void 0, void 0
                 admissionDate: parsedAdmissionDate,
             },
         ], { session });
+        console.log(newStudent);
         // ==========================
         // 4. Generate First Cycle Fee Automatically
         // ==========================

@@ -4,6 +4,7 @@ exports.Student = void 0;
 const mongoose_1 = require("mongoose");
 const studentSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
+    userId: { type: String },
     email: { type: String, required: true, unique: true },
     guradianName: { type: String, required: true },
     phone: { type: String, required: true },

@@ -67,25 +67,68 @@ exports.generateStudentCycles = generateStudentCycles;
 const getAllPayments = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const today = new Date();
-        // 1. Mark unpaid cycles as overdue if due date has passed
+        // ১. নির্ধারিত তারিখ পেরিয়ে যাওয়া অবিক্রীত/অনাদায়ী সাইকেলগুলোকে Overdue মার্ক করা
         yield payment_model_1.StudentFee.updateMany({
             dueDate: { $lt: today },
             status: "unpaid",
         }, { $set: { status: "overdue" } });
-        // 2. Fetch all cycles with populated student info
-        const payments = yield payment_model_1.StudentFee.find()
-            .populate({
-            path: "student",
-            select: "name roll email phone",
-        })
-            .sort({ cycleStartDate: -1 })
-            .lean();
-        // 3. Map result so studentId maps cleanly to populated student
-        const formattedPayments = payments.map((fee) => (Object.assign(Object.assign({}, fee), { studentId: fee.student })));
+        // ২. StudentFee সংগ্রহ থেকে প্রতি স্টুডেন্ট অনুযায়ী Aggregation চালান
+        const summaryData = yield payment_model_1.StudentFee.aggregate([
+            {
+                $group: {
+                    _id: "$student",
+                    totalAmount: { $sum: "$amount" },
+                    totalPaid: { $sum: "$paidAmount" },
+                    totalCycles: { $sum: 1 },
+                    overdueCycles: {
+                        $sum: {
+                            $cond: [{ $eq: ["$status", "overdue"] }, 1, 0],
+                        },
+                    },
+                    lastPaymentDate: { $max: "$paymentDate" },
+                },
+            },
+            {
+                $lookup: {
+                    from: "students", // নিশ্চিত করুন Mongoose এ Student Collection নাম 'students'
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "studentInfo",
+                },
+            },
+            {
+                $unwind: "$studentInfo",
+            },
+            {
+                $project: {
+                    _id: 0,
+                    studentId: "$studentInfo._id",
+                    student: {
+                        _id: "$studentInfo._id",
+                        name: "$studentInfo.name",
+                        userId: "$studentInfo.userId",
+                        admissionDate: "$studentInfo.admissionDate",
+                        email: "$studentInfo.email",
+                        phone: "$studentInfo.phone",
+                        className: "$studentInfo.className",
+                        monthlyFee: "$studentInfo.monthlyFee",
+                    },
+                    totalAmount: 1,
+                    totalPaid: 1,
+                    totalOutstanding: { $subtract: ["$totalAmount", "$totalPaid"] },
+                    totalCycles: 1,
+                    overdueCycles: 1,
+                    lastPaymentDate: 1,
+                },
+            },
+            {
+                $sort: { "student.admissionDate": 1 }, // প্রয়োজন অনুযায়ী সর্ট করুন
+            },
+        ]);
         return res.status(200).json({
             success: true,
-            count: formattedPayments.length,
-            data: formattedPayments,
+            count: summaryData.length,
+            data: summaryData,
         });
     }
     catch (error) {
@@ -120,12 +163,12 @@ const getAllFees = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
 // Retrieve individual student ledger and balance summary
 const getStudentFeeHistory = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { studentId } = req.params;
-        const student = yield student_model_1.Student.findById(studentId);
+        const { userId } = req.params;
+        const student = yield student_model_1.Student.findOne({ userId });
         if (!student) {
             return res.status(404).json({ success: false, message: "Student not found" });
         }
-        const fees = yield payment_model_1.StudentFee.find({ student: studentId }).sort({ cycleStartDate: -1 });
+        const fees = yield payment_model_1.StudentFee.find({ student: student._id }).sort({ cycleStartDate: -1 });
         const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
         const totalPaid = fees.reduce((sum, f) => sum + f.paidAmount, 0);
         const totalOutstanding = totalAmount - totalPaid;
@@ -134,6 +177,7 @@ const getStudentFeeHistory = (req, res) => __awaiter(void 0, void 0, void 0, fun
             success: true,
             student: {
                 id: student._id,
+                userId: student === null || student === void 0 ? void 0 : student.userId,
                 name: student.name,
                 admissionDate: student.admissionDate,
                 monthlyFee: student.monthlyFee,
@@ -321,4 +365,5 @@ exports.StudentFeeControllers = {
     collectPayment,
     getPaymentSummary: exports.getPaymentSummary,
     syncStudentFees,
+    getAllPayments: exports.getAllPayments,
 };

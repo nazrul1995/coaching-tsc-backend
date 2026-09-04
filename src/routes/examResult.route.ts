@@ -8,7 +8,13 @@ import { examResultControllers } from "../controllers/examResult.controller";
 
 
 const router = express.Router();
+// ======================================================
+// OVERALL COACHING LEADERBOARD
+// ======================================================
 
+router.get( "/leaderboard/overall",
+  examResultControllers.getOverallLeaderboard
+);
 router.use(verifyToken);
 
 // Admin result entry
